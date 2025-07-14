@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius: 0.65rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar styles */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Animation classes for better UX */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes zoom-in-95 {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-from-top-2 {
+  from {
+    transform: translateY(-8px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-from-bottom-2 {
+  from {
+    transform: translateY(8px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-from-left-2 {
+  from {
+    transform: translateX(-8px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-from-right-2 {
+  from {
+    transform: translateX(8px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-in {
+  animation-duration: 0.15s;
+  animation-fill-mode: both;
+}
+
+.fade-in-0 {
+  animation-name: fade-in;
+}
+
+.zoom-in-95 {
+  animation-name: zoom-in-95;
+}
+
+.data-\[state\=open\]\:animate-in[data-state="open"] {
+  animation-duration: 0.15s;
+  animation-fill-mode: both;
+}
+
+.data-\[side\=bottom\]\:slide-in-from-top-2[data-side="bottom"] {
+  animation-name: slide-in-from-top-2;
+}
+
+.data-\[side\=top\]\:slide-in-from-bottom-2[data-side="top"] {
+  animation-name: slide-in-from-bottom-2;
+}
+
+.data-\[side\=left\]\:slide-in-from-right-2[data-side="left"] {
+  animation-name: slide-in-from-right-2;
+}
+
+.data-\[side\=right\]\:slide-in-from-left-2[data-side="right"] {
+  animation-name: slide-in-from-left-2;
+}
