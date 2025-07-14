@@ -549,7 +549,7 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
           value={value}
           onChange={handleInputChange}
           onPaste={handlePaste}
-          placeholder="Paste a video link or message..."
+          placeholder="Ask anything..."
           className="custom-scrollbar w-full resize-none border-0 bg-transparent p-3 text-white placeholder:text-gray-400 focus:ring-0 focus-visible:outline-none min-h-12"
           {...props}
         />

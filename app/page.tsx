@@ -19,7 +19,7 @@ export default function ChatPage() {
       <SessionNavBar />
       <main className="flex h-full flex-1 flex-col items-center justify-center pl-[3.05rem]">
         <div className="w-full max-w-xl flex flex-col gap-10">
-          <p className="text-center text-3xl text-white">How Can I Help You</p>
+          <p className="text-center text-3xl text-white">How Can I Help You?</p>
           <form onSubmit={handleSubmit}>
             <PromptBox name="message" />
           </form>
