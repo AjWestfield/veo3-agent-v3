@@ -6,7 +6,7 @@
 
 ### Core Capabilities
 - **AI Chat Interface**: Modern chat UI with Google Gemini AI integration
-- **Image Generation**: Create images using OpenAI DALL-E or Wavespeed AI models
+- **Image Generation**: Create images using OpenAI GPT-Image-1 or Wavespeed AI Flux Dev LoRA Ultra Fast
 - **Image Editing**: Edit existing images with natural language prompts using Wavespeed Flux Kontext Max
 - **Video Processing**: Upload and analyze video files with AI
 - **File Upload Support**: Handle images, videos, audio, and documents
@@ -57,7 +57,7 @@ Create a `.env.local` file in the root directory with the following variables:
 # Google Gemini AI API Key
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# OpenAI API Key (for DALL-E image generation)
+# OpenAI API Key (for GPT-Image-1 image generation)
 OPENAI_API_KEY=your_openai_api_key_here
 
 # Wavespeed API Key (for advanced image generation and editing)
@@ -273,7 +273,7 @@ All settings are persisted locally and can be accessed through the settings pane
 
 ### AI Integration
 - **Google Gemini AI** - Chat and multi-modal AI
-- **OpenAI API** - DALL-E image generation
+- **OpenAI API** - GPT-Image-1 image generation
 - **Wavespeed AI** - Advanced image generation and editing
 
 ### State Management
