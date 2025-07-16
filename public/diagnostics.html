@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VEO3 Agent - Video Upload Diagnostics</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .file-info {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-family: monospace;
+        }
+        .error {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #388e3c;
+            background: #e8f5e9;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .warning {
+            color: #f57c00;
+            background: #fff3e0;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        input[type="file"] {
+            margin: 20px 0;
+            padding: 10px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+            display: none;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #4caf50;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        button {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        #log {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VEO3 Agent - Video Upload Diagnostics</h1>
+        
+        <p>This tool will help diagnose video upload issues by checking file properties and testing the upload process.</p>
+        
+        <input type="file" id="fileInput" accept="video/*,image/*,audio/*">
+        
+        <div id="fileInfo"></div>
+        
+        <button id="testButton" style="display:none;" onclick="testUpload()">Test Upload</button>
+        
+        <div class="progress" id="progress">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div id="result"></div>
+        
+        <h3>Debug Log:</h3>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const testButton = document.getElementById('testButton');
+        const result = document.getElementById('result');
+        const log = document.getElementById('log');
+        let selectedFile = null;
+
+        function addLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            log.textContent += `[${timestamp}] ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            selectedFile = file;
+            testButton.style.display = 'block';
+            
+            const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+            const sizeGB = (file.size / 1024 / 1024 / 1024).toFixed(3);
+            
+            let html = '<div class="file-info">';
+            html += `<strong>File Name:</strong> ${file.name}<br>`;
+            html += `<strong>Type:</strong> ${file.type}<br>`;
+            html += `<strong>Size:</strong> ${sizeMB} MB (${sizeGB} GB)<br>`;
+            html += `<strong>Last Modified:</strong> ${new Date(file.lastModified).toLocaleString()}<br>`;
+            html += '</div>';
+            
+            // Size checks
+            if (file.type.startsWith('video/')) {
+                if (file.size > 1024 * 1024 * 1024) {
+                    html += '<div class="error">❌ Video exceeds 1GB limit!</div>';
+                    testButton.disabled = true;
+                } else if (file.size > 500 * 1024 * 1024) {
+                    html += '<div class="warning">⚠️ Large video (>500MB) may take several minutes to upload and process.</div>';
+                    testButton.disabled = false;
+                } else {
+                    html += '<div class="success">✅ Video size is within limits.</div>';
+                    testButton.disabled = false;
+                }
+            } else if (file.type.startsWith('image/')) {
+                if (file.size > 20 * 1024 * 1024) {
+                    html += '<div class="error">❌ Image exceeds 20MB limit!</div>';
+                    testButton.disabled = true;
+                } else {
+                    html += '<div class="success">✅ Image size is within limits.</div>';
+                    testButton.disabled = false;
+                }
+            } else if (file.type.startsWith('audio/')) {
+                if (file.size > 20 * 1024 * 1024) {
+                    html += '<div class="error">❌ Audio exceeds 20MB limit!</div>';
+                    testButton.disabled = true;
+                } else {
+                    html += '<div class="success">✅ Audio size is within limits.</div>';
+                    testButton.disabled = false;
+                }
+            }
+            
+            fileInfo.innerHTML = html;
+            
+            addLog(`File selected: ${file.name} (${sizeMB}MB, type: ${file.type})`);
+        });
+
+        async function testUpload() {
+            if (!selectedFile) return;
+            
+            testButton.disabled = true;
+            document.getElementById('progress').style.display = 'block';
+            result.innerHTML = '';
+            
+            const formData = new FormData();
+            formData.append('message', 'Test upload - please analyze this file');
+            formData.append('files', selectedFile);
+            
+            const startTime = Date.now();
+            addLog('Starting upload...');
+            
+            try {
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        document.getElementById('progressBar').style.width = percentComplete + '%';
+                        addLog(`Upload progress: ${percentComplete.toFixed(1)}%`);
+                    }
+                });
+                
+                xhr.addEventListener('load', () => {
+                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                    addLog(`Upload completed in ${elapsed}s`);
+                    
+                    if (xhr.status === 200) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            result.innerHTML = '<div class="success">✅ Upload successful!</div>';
+                            result.innerHTML += '<div class="file-info"><strong>Response:</strong><br>' + 
+                                               response.response.substring(0, 200) + '...</div>';
+                            addLog('Server responded successfully');
+                        } catch (e) {
+                            result.innerHTML = '<div class="error">❌ Failed to parse response</div>';
+                            addLog('Parse error: ' + e.message);
+                        }
+                    } else {
+                        const errorData = JSON.parse(xhr.responseText);
+                        result.innerHTML = `<div class="error">❌ Upload failed: ${errorData.error}</div>`;
+                        if (errorData.details) {
+                            result.innerHTML += `<div class="error">Details: ${errorData.details}</div>`;
+                        }
+                        addLog(`Server error: ${errorData.error} - ${errorData.details || 'No details'}`);
+                    }
+                    testButton.disabled = false;
+                });
+                
+                xhr.addEventListener('error', () => {
+                    result.innerHTML = '<div class="error">❌ Network error occurred</div>';
+                    addLog('Network error');
+                    testButton.disabled = false;
+                });
+                
+                xhr.addEventListener('timeout', () => {
+                    result.innerHTML = '<div class="error">❌ Request timed out (exceeded 5 minutes)</div>';
+                    addLog('Request timeout');
+                    testButton.disabled = false;
+                });
+                
+                xhr.open('POST', '/api/chat');
+                xhr.timeout = 300000; // 5 minute timeout
+                xhr.send(formData);
+                
+            } catch (error) {
+                result.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                addLog('Error: ' + error.message);
+                testButton.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

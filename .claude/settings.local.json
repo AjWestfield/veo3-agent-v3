@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(awk:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npx tsc:*)",
+      "Bash(chmod:*)",
+      "mcp__context7-mcp__resolve-library-id",
+      "mcp__context7-mcp__get-library-docs",
+      "Bash(npm install:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run lint)",
+      "Bash(true)",
+      "Bash(npm run:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(tsc --noEmit)",
+      "Bash(pkill:*)",
+      "Bash(lsof:*)",
+      "Bash(curl:*)",
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(npm ci:*)",
+      "Bash(PORT=3010 npm run dev)",
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "WebFetch(domain:doc.wavespeed.ai)",
+      "WebFetch(domain:wavespeed.ai)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}

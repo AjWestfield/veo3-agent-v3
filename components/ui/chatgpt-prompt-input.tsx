@@ -11,7 +11,7 @@ interface UploadedFile {
   id: string
   file: File
   thumbnail: string
-  type: "image" | "video"
+  type: "image" | "video" | "audio"
   videoUrl?: string
   isLoading?: boolean
 }
@@ -370,6 +370,17 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
             }
             setUploadedFiles((prev) => [...prev, newFile])
           }
+        } else if (file.type.startsWith("audio/")) {
+          // Handle audio files
+          const audioUrl = URL.createObjectURL(file)
+          const newFile: UploadedFile = {
+            id,
+            file,
+            thumbnail: "", // Audio files don't have visual thumbnails
+            type: "audio" as any, // We'll need to update the type definition
+            videoUrl: audioUrl, // Reuse videoUrl field for audio URL
+          }
+          setUploadedFiles((prev) => [...prev, newFile])
         }
       })
     }
@@ -471,7 +482,7 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
           ref={fileInputRef}
           onChange={handleFileChange}
           className="hidden"
-          accept="image/*,video/*"
+          accept="image/*,video/*,audio/*"
           multiple
         />
 
@@ -505,26 +516,36 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
                     </div>
                   ) : (
                     <>
-                      <img
-                        src={uploadedFile.thumbnail || "/placeholder.svg"}
-                        alt={uploadedFile.type === "video" ? "Video thumbnail" : "Image preview"}
-                        className="w-full h-full object-cover cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedFilePreview(uploadedFile)
-                          setIsFileDialogOpen(true)
-                        }}
-                      />
-                      {uploadedFile.type === "video" && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg pointer-events-none">
-                          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path
-                              fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                              clipRule="evenodd"
-                            />
+                      {uploadedFile.type === "audio" ? (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-700">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
                           </svg>
                         </div>
+                      ) : (
+                        <>
+                          <img
+                            src={uploadedFile.thumbnail || "/placeholder.svg"}
+                            alt={uploadedFile.type === "video" ? "Video thumbnail" : "Image preview"}
+                            className="w-full h-full object-cover cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedFilePreview(uploadedFile)
+                              setIsFileDialogOpen(true)
+                            }}
+                          />
+                          {uploadedFile.type === "video" && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg pointer-events-none">
+                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path
+                                  fillRule="evenodd"
+                                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            </div>
+                          )}
+                        </>
                       )}
                     </>
                   )}
@@ -675,7 +696,6 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
                       videoid={getYouTubeVideoId(selectedFilePreview.videoUrl)!}
                       params="autoplay=1"
                       playlabel="Play video"
-                      className="w-full h-full rounded-[24px]"
                     />
                   </div>
                 ) : selectedFilePreview.type === "image" ? (
@@ -684,6 +704,23 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
                     alt="Full size preview"
                     className="w-full max-h-[95vh] object-contain rounded-[24px]"
                   />
+                ) : selectedFilePreview.type === "audio" ? (
+                  <div className="w-full p-8 bg-[#404040] rounded-[24px]">
+                    <div className="flex flex-col items-center gap-4">
+                      <svg className="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                      </svg>
+                      <p className="text-white text-lg">{selectedFilePreview.file.name}</p>
+                      <audio
+                        src={selectedFilePreview.videoUrl}
+                        controls
+                        autoPlay
+                        className="w-full max-w-md"
+                      >
+                        Your browser does not support the audio tag.
+                      </audio>
+                    </div>
+                  </div>
                 ) : (
                   <video
                     src={selectedFilePreview.videoUrl}

@@ -5,11 +5,12 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { motion } from "framer-motion"
-import { MessageSquare, Plus, Music, Trash2, User, Settings } from "lucide-react"
+import { MessageSquare, Plus, Music, Trash2, User, Settings, X } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { useImages } from "@/contexts/images-context"
 
 const TooltipProvider = TooltipPrimitive.Provider
 const Tooltip = TooltipPrimitive.Root
@@ -132,18 +133,53 @@ const SidebarSectionHeader = ({
   </motion.div>
 )
 
-const MediaGrid = ({ isCollapsed, items }: { isCollapsed: boolean; items: { id: string; src: string }[] }) => (
+const MediaGrid = ({ 
+  isCollapsed, 
+  items, 
+  onItemClick,
+  onItemDelete,
+  showDeleteButton = false 
+}: { 
+  isCollapsed: boolean
+  items: { id: string; src: string; prompt?: string }[]
+  onItemClick?: (item: any) => void
+  onItemDelete?: (id: string) => void
+  showDeleteButton?: boolean
+}) => (
   <motion.div variants={itemVariants}>
     {!isCollapsed && (
       <div className="grid grid-cols-4 gap-2 px-2">
         {items.map((item) => (
-          <div key={item.id} className="aspect-square rounded-md bg-[#404040] overflow-hidden">
-            <img src={item.src || "/placeholder.svg"} alt="media thumbnail" className="w-full h-full object-cover" />
+          <div key={item.id} className="relative group">
+            <div 
+              className="aspect-square rounded-md bg-[#404040] overflow-hidden cursor-pointer"
+              onClick={() => onItemClick?.(item)}
+            >
+              <img 
+                src={item.src || "/placeholder.svg"} 
+                alt={item.prompt || "media thumbnail"} 
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" 
+              />
+            </div>
+            {showDeleteButton && onItemDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onItemDelete(item.id)
+                }}
+                className="absolute top-1 right-1 w-5 h-5 bg-black/70 hover:bg-black/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Delete image"
+              >
+                <X className="h-3 w-3 text-white" />
+              </button>
+            )}
           </div>
         ))}
-        <div className="aspect-square rounded-md bg-transparent border-2 border-dashed border-gray-600 flex items-center justify-center">
-          <Plus className="h-5 w-5 text-gray-600" />
-        </div>
+        {items.length === 0 && (
+          <div className="col-span-4 text-xs text-gray-500 text-center py-2">
+            No images yet
+          </div>
+        )}
       </div>
     )}
   </motion.div>
@@ -165,19 +201,37 @@ const AudioList = ({ isCollapsed, items }: { isCollapsed: boolean; items: { id: 
   </motion.div>
 )
 
-export function SessionNavBar() {
+interface SessionNavBarProps {
+  onSettingsClick?: () => void
+  onEditImage?: (url: string, alt: string) => void
+}
+
+export function SessionNavBar({ onSettingsClick, onEditImage }: SessionNavBarProps) {
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [chatHistory, setChatHistory] = useState<string[]>([])
-  const [images, setImages] = useState<{ id: string; src: string }[]>([])
   const [videos, setVideos] = useState<{ id: string; src: string }[]>([])
   const [audio, setAudio] = useState<{ id: string; name: string }[]>([])
+  const [selectedImage, setSelectedImage] = useState<any>(null)
+  
+  const { images, removeImage, clearImages } = useImages()
 
   const handleClearChatHistory = () => {
     setChatHistory([])
   }
 
+  const handleImageClick = (item: any) => {
+    setSelectedImage(item)
+  }
+
+  const handleClearImages = () => {
+    if (window.confirm('Are you sure you want to clear all tracked images?')) {
+      clearImages()
+    }
+  }
+
   return (
-    <motion.div
+    <>
+      <motion.div
       className={cn("sidebar fixed left-0 z-40 h-full shrink-0 border-r border-[#4a4a4a]")}
       initial="closed"
       animate={isCollapsed ? "closed" : "open"}
@@ -220,8 +274,22 @@ export function SessionNavBar() {
             <Separator className="bg-[#4a4a4a]" />
 
             <div>
-              <SidebarSectionHeader title="Images" isCollapsed={isCollapsed} />
-              <MediaGrid isCollapsed={isCollapsed} items={images} />
+              <SidebarSectionHeader 
+                title={`Images${!isCollapsed && images.length > 0 ? ` (${images.length})` : ''}`} 
+                isCollapsed={isCollapsed} 
+                onClear={images.length > 0 ? handleClearImages : undefined}
+              />
+              <MediaGrid 
+                isCollapsed={isCollapsed} 
+                items={images.map(img => ({ 
+                  id: img.id, 
+                  src: img.url,
+                  prompt: img.prompt 
+                }))}
+                onItemClick={handleImageClick}
+                onItemDelete={removeImage}
+                showDeleteButton={true}
+              />
             </div>
 
             <div>
@@ -241,12 +309,80 @@ export function SessionNavBar() {
             <User className="h-4 w-4" />
             <motion.span variants={itemVariants}>{!isCollapsed && "Account"}</motion.span>
           </Button>
-          <Button variant="ghost" className="w-full justify-start gap-2 text-white hover:bg-[#404040]">
-            <Settings className="h-4 w-4" />
-            <motion.span variants={itemVariants}>{!isCollapsed && "Settings"}</motion.span>
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start gap-2 text-white hover:bg-[#404040]"
+                  onClick={onSettingsClick}
+                >
+                  <Settings className="h-4 w-4" />
+                  <motion.span variants={itemVariants}>{!isCollapsed && "Settings"}</motion.span>
+                </Button>
+              </TooltipTrigger>
+              {isCollapsed && (
+                <TooltipContent side="right">
+                  Settings
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </motion.div>
     </motion.div>
+
+    {/* Image Viewer Modal */}
+    {selectedImage && (
+      <>
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+          onClick={() => setSelectedImage(null)}
+        />
+        <div className="fixed inset-4 md:inset-8 z-50 flex items-center justify-center">
+          <div className="relative max-w-4xl max-h-[90vh] rounded-lg overflow-hidden bg-[#2f2f2f]">
+            {/* Close button */}
+            <button
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors"
+              aria-label="Close image viewer"
+            >
+              <X className="h-6 w-6 text-white" />
+            </button>
+
+            {/* Image info */}
+            {selectedImage.prompt && (
+              <div className="absolute top-4 left-4 z-10 bg-black/50 rounded-lg px-3 py-2 max-w-[60%]">
+                <p className="text-white text-sm">{selectedImage.prompt}</p>
+              </div>
+            )}
+
+            {/* Image */}
+            <img 
+              src={selectedImage.src} 
+              alt={selectedImage.prompt || "Generated image"}
+              className="max-w-full max-h-[90vh] object-contain"
+            />
+
+            {/* Edit Image button */}
+            {onEditImage && (
+              <button
+                onClick={() => {
+                  onEditImage(selectedImage.src, selectedImage.prompt || "Generated image")
+                  setSelectedImage(null)
+                }}
+                className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg backdrop-blur-sm transition-colors flex items-center gap-2 border border-white/20"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit Image
+              </button>
+            )}
+          </div>
+        </div>
+      </>
+    )}
+  </>
   )
 }

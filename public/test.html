@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VEO3 Agent - Manual Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #4a4a4a;
+            border-radius: 8px;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            background: #2f2f2f;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>VEO3 Agent - Manual Test Page</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Text Query</h2>
+        <button onclick="testText()">Test Text Query</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Image Upload</h2>
+        <input type="file" id="fileInput" accept="image/*,video/*,audio/*">
+        <button onclick="testFile()">Test File Upload</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Combined</h2>
+        <button onclick="testCombined()">Test Text + File</button>
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        const resultDiv = document.getElementById('result');
+        const API_URL = 'http://localhost:3004/api/chat';
+        
+        async function testText() {
+            resultDiv.textContent = 'Testing text query...';
+            
+            const formData = new FormData();
+            formData.append('message', 'What is the capital of France?');
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                resultDiv.textContent = 'Response: ' + data.response;
+            } catch (error) {
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testFile() {
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files[0]) {
+                resultDiv.textContent = 'Please select a file first';
+                return;
+            }
+            
+            resultDiv.textContent = 'Testing file upload...';
+            
+            const formData = new FormData();
+            formData.append('message', 'Analyze this file');
+            formData.append('files', fileInput.files[0]);
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                resultDiv.textContent = 'Response: ' + data.response;
+            } catch (error) {
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testCombined() {
+            const fileInput = document.getElementById('fileInput');
+            
+            resultDiv.textContent = 'Testing combined query...';
+            
+            const formData = new FormData();
+            formData.append('message', 'Tell me a joke and analyze any files if uploaded');
+            if (fileInput.files[0]) {
+                formData.append('files', fileInput.files[0]);
+            }
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                resultDiv.textContent = 'Response: ' + data.response;
+            } catch (error) {
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

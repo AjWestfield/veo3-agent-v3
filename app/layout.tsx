@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { SettingsProvider } from '@/contexts/settings-context'
+import { ImagesProvider } from '@/contexts/images-context'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'VEO3 Agent',
+  description: 'AI-powered video processing and chat application',
 }
 
 export default function RootLayout({
@@ -14,7 +15,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body suppressHydrationWarning>
+        <SettingsProvider>
+          <ImagesProvider>
+            {children}
+          </ImagesProvider>
+        </SettingsProvider>
+      </body>
     </html>
   )
 }

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webpack Error Test</title>
+</head>
+<body>
+    <h1>Testing Webpack Error</h1>
+    <iframe src="http://localhost:3010" width="100%" height="600" id="app-iframe"></iframe>
+    
+    <div id="error-log" style="margin-top: 20px; padding: 20px; background: #f0f0f0;">
+        <h2>Console Errors:</h2>
+        <pre id="errors"></pre>
+    </div>
+    
+    <script>
+        const iframe = document.getElementById('app-iframe');
+        const errorsDiv = document.getElementById('errors');
+        let errors = [];
+        
+        // Listen for errors from the iframe
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'error') {
+                errors.push(event.data.message);
+                errorsDiv.textContent = errors.join('\n\n');
+            }
+        });
+        
+        // Also log any errors from this page
+        window.addEventListener('error', (event) => {
+            errors.push(`Main page error: ${event.message}`);
+            errorsDiv.textContent = errors.join('\n\n');
+        });
+        
+        // Check if iframe loaded
+        iframe.addEventListener('load', () => {
+            console.log('Iframe loaded successfully');
+        });
+        
+        iframe.addEventListener('error', (event) => {
+            errors.push(`Iframe load error: ${event.message}`);
+            errorsDiv.textContent = errors.join('\n\n');
+        });
+    </script>
+</body>
+</html>
