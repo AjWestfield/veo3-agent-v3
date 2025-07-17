@@ -1,48 +1,134 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
+import { WebSearchResults } from "@/components/web-search-results"
 
 interface MessageContentProps {
   content: string
   isStreaming?: boolean
   onImageClick?: (imageUrl: string, altText: string) => void
   onEditImage?: (imageUrl: string, altText: string) => void
+  onFilePathClick?: (filePath: string) => void
+  onRelatedQuestionClick?: (question: string) => void
+  searchData?: {
+    citations?: string[]
+    searchResults?: any[]
+    images?: any[]
+    relatedQuestions?: string[]
+  }
+  searchProgress?: {
+    stage: "searching" | "analyzing" | "formatting"
+    message: string
+  }
 }
 
-export function MessageContent({ content, isStreaming, onImageClick, onEditImage }: MessageContentProps) {
-  // Parse the content to detect markdown images
-  const renderContent = () => {
-    // Split content by markdown image pattern
-    const parts = content.split(/(\!\[.*?\]\(.*?\))/)
+interface ClipData {
+  clipNumber: number
+  totalClips: number
+  timestamp: string
+  content: string
+}
+
+export function MessageContent({ content, isStreaming, onImageClick, onEditImage, onFilePathClick, onRelatedQuestionClick, searchData, searchProgress }: MessageContentProps) {
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+
+  // Check if this is a web search result
+  const isWebSearchResult = content.includes("### Sources:") || content.includes("### Related Images:") || searchData || searchProgress
+
+  // Check if this is a multi-clip or single VEO 3 prompt
+  const isMultiClipVEO3 = content.includes("VEO 3 MULTI-CLIP ANALYSIS:") || content.includes("VEO 3 AUTO-DETECTED CLIPS ANALYSIS:")
+  const isAutoDetectedClips = content.includes("VEO 3 AUTO-DETECTED CLIPS ANALYSIS:")
+  const isSingleVEO3Prompt = !isMultiClipVEO3 && content.includes("VEO 3 PROMPT:")
+
+  // Parse multi-clip content
+  const parseMultiClipContent = (): ClipData[] => {
+    if (!isMultiClipVEO3) return []
     
-    return parts.map((part, index) => {
-      // Check if this part is a markdown image
-      const imageMatch = part.match(/\!\[(.*?)\]\((.*?)\)/)
+    const clips: ClipData[] = []
+    // Updated pattern to match the new format (without "VEO 3 PROMPT:" after clip header)
+    const clipPattern = /## CLIP (\d+) of (\d+) \[Timestamp: ([^\]]+)\]\s*\n([\s\S]*?)(?=## CLIP \d+ of \d+|$)/g
+    
+    let match
+    while ((match = clipPattern.exec(content)) !== null) {
+      clips.push({
+        clipNumber: parseInt(match[1]),
+        totalClips: parseInt(match[2]),
+        timestamp: match[3],
+        content: match[4].trim()
+      })
+    }
+    
+    return clips
+  }
+
+  const copyToClipboard = async (text: string, index?: number) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedIndex(index ?? -1)
+      setTimeout(() => setCopiedIndex(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  const copySinglePrompt = async () => {
+    // Extract the prompt text (everything after "VEO 3 PROMPT:")
+    const promptStart = content.indexOf("VEO 3 PROMPT:") + "VEO 3 PROMPT:".length
+    const promptText = content.substring(promptStart).trim()
+    await copyToClipboard(promptText)
+  }
+
+  // Parse the content to detect markdown images and file paths
+  const renderContent = () => {
+    // Split content by markdown image pattern and file path pattern
+    const combinedPattern = /(\!\[.*?\]\(.*?\))|(\/([\w\-\._~:\/\[\]@!$&'()*+,;=%]+\/)+[\w\-\._~:\/\[\]@!$&'()*+,;=%]+\.\w+)|([A-Za-z]:\\(?:[\w\-\._~:\/\[\]@!$&'()*+,;=%]+\\)*[\w\-\._~:\/\[\]@!$&'()*+,;=%]+\.\w+)/g;
+    
+    const elements: React.ReactNode[] = [];
+    let currentIndex = 0;
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = combinedPattern.exec(content)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        const textBefore = content.slice(lastIndex, match.index);
+        if (textBefore.trim()) {
+          elements.push(
+            <span key={`text-${currentIndex++}`}>
+              {renderTextWithLineBreaks(textBefore)}
+            </span>
+          );
+        }
+      }
+      
+      const fullMatch = match[0];
+      
+      // Check if this is a markdown image
+      const imageMatch = fullMatch.match(/\!\[(.*?)\]\((.*?)\)/);
       
       if (imageMatch) {
-        const altText = imageMatch[1]
-        const imageUrl = imageMatch[2]
+        const altText = imageMatch[1];
+        const imageUrl = imageMatch[2];
         
-        return (
-          <div key={index} className="my-4 relative inline-block group">
+        elements.push(
+          <div key={`img-${currentIndex++}`} className="my-4 relative inline-block group">
             <img
               src={imageUrl}
               alt={altText}
-              className="max-w-md rounded-lg shadow-lg cursor-pointer hover:opacity-95 transition-opacity"
-              style={{ maxHeight: '400px', objectFit: 'contain' }}
+              className="max-w-md max-h-[400px] object-contain rounded-lg shadow-lg cursor-pointer hover:opacity-95 transition-opacity"
               onClick={() => {
                 if (onImageClick) {
-                  onImageClick(imageUrl, altText)
+                  onImageClick(imageUrl, altText);
                 } else {
-                  window.open(imageUrl, '_blank')
+                  window.open(imageUrl, '_blank');
                 }
               }}
             />
             {onEditImage && !altText.includes('edited') && (
               <button
                 onClick={(e) => {
-                  e.stopPropagation()
-                  onEditImage(imageUrl, altText)
+                  e.stopPropagation();
+                  onEditImage(imageUrl, altText);
                 }}
                 className="absolute bottom-2 right-2 bg-black/70 hover:bg-black/90 text-white px-3 py-1.5 rounded-md text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5"
               >
@@ -53,51 +139,212 @@ export function MessageContent({ content, isStreaming, onImageClick, onEditImage
               </button>
             )}
           </div>
-        )
+        );
+      } else {
+        // This is a file path
+        elements.push(
+          <span
+            key={`file-${currentIndex++}`}
+            className="inline-block bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 px-2 py-1 rounded cursor-pointer transition-colors font-mono text-sm"
+            onClick={() => {
+              if (onFilePathClick) {
+                onFilePathClick(fullMatch);
+              }
+            }}
+            title={`Click to view: ${fullMatch}`}
+          >
+            {fullMatch}
+          </span>
+        );
       }
       
-      // For non-image parts, render as text with line breaks
-      return (
-        <span key={index}>
-          {part.split('\n').map((line, lineIndex) => (
-            <React.Fragment key={lineIndex}>
-              {lineIndex > 0 && <br />}
-              {line}
-            </React.Fragment>
-          ))}
-        </span>
-      )
-    })
+      lastIndex = match.index + fullMatch.length;
+    }
+    
+    // Add any remaining text after the last match
+    if (lastIndex < content.length) {
+      const remainingText = content.slice(lastIndex);
+      if (remainingText.trim()) {
+        elements.push(
+          <span key={`text-${currentIndex++}`}>
+            {renderTextWithLineBreaks(remainingText)}
+          </span>
+        );
+      }
+    }
+    
+    return elements;
+  };
+  
+  // Helper function to render text with line breaks
+  const renderTextWithLineBreaks = (text: string) => {
+    return text.split('\n').map((line, lineIndex) => (
+      <React.Fragment key={lineIndex}>
+        {lineIndex > 0 && <br />}
+        {line}
+      </React.Fragment>
+    ));
+  };
+  // Render multi-clip content
+  const renderMultiClipContent = () => {
+    const clips = parseMultiClipContent()
+    if (clips.length === 0) return renderContent()
+    
+    // Extract video duration info if auto-detected
+    let videoDurationInfo = ""
+    if (isAutoDetectedClips) {
+      const durationMatch = content.match(/Video Duration: \[?(\d+) seconds\]? \| Number of 8-second clips: \[?(\d+)\]?/)
+      if (durationMatch) {
+        videoDurationInfo = `Video Duration: ${durationMatch[1]} seconds | ${durationMatch[2]} clips detected`
+      }
+    }
+    
+    return (
+      <div className="space-y-8">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-white">
+            {isAutoDetectedClips ? "VEO 3 AUTO-DETECTED CLIPS ANALYSIS:" : "VEO 3 MULTI-CLIP ANALYSIS:"}
+          </h3>
+          <p className="text-sm text-white/70 mt-1">
+            {videoDurationInfo || `Found ${clips.length} clips. Each clip is approximately 8 seconds.`}
+          </p>
+        </div>
+        
+        {clips.map((clip, index) => (
+          <div key={index} className="border border-white/20 rounded-lg p-6 relative bg-black/20 backdrop-blur-sm hover:bg-black/30 transition-colors">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h4 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 text-sm font-bold">
+                    {clip.clipNumber}
+                  </span>
+                  Clip {clip.clipNumber} of {clip.totalClips}
+                </h4>
+                <p className="text-sm text-white/60 mt-1">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline mr-1">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  {clip.timestamp}
+                </p>
+              </div>
+              <button
+                onClick={() => copyToClipboard(clip.content, index)}
+                className={`
+                  px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 shadow-lg
+                  ${copiedIndex === index
+                    ? 'bg-green-500 text-white shadow-green-500/25' 
+                    : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/25'
+                  }
+                `}
+              >
+                {copiedIndex === index ? (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    Copy Prompt
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="prose prose-sm prose-invert max-w-none">
+              <div className="text-sm text-white/90 whitespace-pre-wrap font-mono bg-black/40 rounded-md p-4 overflow-x-auto">
+                {clip.content}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
   }
   
+  // If this is a web search result, use the dedicated component
+  if (isWebSearchResult) {
+    return (
+      <WebSearchResults
+        content={content}
+        citations={searchData?.citations}
+        searchResults={searchData?.searchResults}
+        images={searchData?.images}
+        relatedQuestions={searchData?.relatedQuestions}
+        isStreaming={isStreaming}
+        searchProgress={searchProgress}
+        onRelatedQuestionClick={onRelatedQuestionClick}
+      />
+    )
+  }
+
   return (
-    <div className="whitespace-pre-wrap break-words">
-      {renderContent()}
-      {isStreaming && content.includes('...') && (content.includes('Uploading') || content.includes('Processing')) && (
-        <div className="mt-2">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-blue-500 rounded-full animate-pulse"
-                style={{
-                  width: content.includes('Uploading to cloud') ? '33%' :
-                         content.includes('Processing video') ? '66%' :
-                         content.includes('Analyzing') ? '90%' : '10%',
-                  transition: 'width 0.5s ease-out'
-                }}
-              />
-            </div>
-            {content.match(/\((\d+)s elapsed\)/) && (
-              <span className="text-xs text-white/50 min-w-[60px]">
-                {content.match(/\((\d+)s elapsed\)/)?.[1]}s
-              </span>
+    <div className="relative">
+      {isSingleVEO3Prompt && !isStreaming && (
+        <div className="absolute top-0 right-0 z-10">
+          <button
+            onClick={copySinglePrompt}
+            className={`
+              px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2
+              ${copiedIndex === -1
+                ? 'bg-green-500 text-white' 
+                : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }
+            `}
+          >
+            {copiedIndex === -1 ? (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Copied!
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                Copy Prompt
+              </>
             )}
-          </div>
+          </button>
         </div>
       )}
-      {isStreaming && !content.includes('...') && (
-        <span className="inline-block w-1 h-4 bg-white/50 ml-0.5 animate-pulse" />
-      )}
+      
+      <div className={`whitespace-pre-wrap break-words ${isSingleVEO3Prompt ? 'pr-32' : ''}`}>
+        {isMultiClipVEO3 && !isStreaming ? renderMultiClipContent() : renderContent()}
+        {isStreaming && content.includes('...') && (content.includes('Uploading') || content.includes('Processing')) && (
+          <div className="mt-2">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-500 rounded-full animate-pulse"
+                  style={{
+                    width: content.includes('Uploading to cloud') ? '33%' :
+                           content.includes('Processing video') ? '66%' :
+                           content.includes('Analyzing') ? '90%' : '10%',
+                    transition: 'width 0.5s ease-out'
+                  }}
+                />
+              </div>
+              {content.match(/\((\d+)s elapsed\)/) && (
+                <span className="text-xs text-white/50 min-w-[60px]">
+                  {content.match(/\((\d+)s elapsed\)/)?.[1]}s
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+        {isStreaming && !content.includes('...') && (
+          <span className="inline-block w-1 h-4 bg-white/50 ml-0.5 animate-pulse" />
+        )}
+      </div>
     </div>
   )
 }

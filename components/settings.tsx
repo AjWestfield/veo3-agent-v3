@@ -13,12 +13,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Sheet,
+  SheetWrapper,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
+} from '@/components/ui/sheet-safe'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 
@@ -123,8 +123,8 @@ export function SettingsPanel({ isOpen, onOpenChange }: SettingsPanelProps) {
 
   return (
     <>
-      <Sheet open={isOpen} onOpenChange={onOpenChange}>
-        <SheetContent side="left" className="bg-[#1a1a1a] text-white border-[#4a4a4a] overflow-y-auto">
+      <SheetWrapper open={isOpen} onOpenChange={onOpenChange}>
+        <SheetContent side="left" className="bg-[#1a1a1a] text-white border-[#4a4a4a] overflow-y-auto" onOpenChange={onOpenChange}>
         <SheetHeader>
           <SheetTitle className="text-white">Settings</SheetTitle>
           <SheetDescription className="text-gray-400">
@@ -293,7 +293,7 @@ export function SettingsPanel({ isOpen, onOpenChange }: SettingsPanelProps) {
           </div>
         </div>
       </SheetContent>
-    </Sheet>
+    </SheetWrapper>
     
     {notification && (
       <Notification

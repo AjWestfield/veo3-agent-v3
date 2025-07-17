@@ -1,25 +1,44 @@
-# VEO3 Agent v1 - AI-Powered Chat with Image Generation and Editing
+# VEO3 Agent v2 - Advanced AI Chat with Web Search, Multi-Image Editing & More
 
-> A comprehensive AI chat application with advanced image generation and editing capabilities, built with Next.js 15, React 19, and integrated with Google Gemini AI, OpenAI, and Wavespeed APIs.
+> A next-generation AI chat application featuring web search capabilities, multi-image editing, prompt enhancement, and comprehensive media support. Built with Next.js 15, React 19, and integrated with Google Gemini AI, OpenAI, Perplexity, and Wavespeed APIs.
 
-## 🚀 Features
+## 🚀 Key Features
 
-### Core Capabilities
-- **AI Chat Interface**: Modern chat UI with Google Gemini AI integration
-- **Image Generation**: Create images using OpenAI GPT-Image-1 or Wavespeed AI Flux Dev LoRA Ultra Fast
-- **Image Editing**: Edit existing images with natural language prompts using Wavespeed Flux Kontext Max
-- **Video Processing**: Upload and analyze video files with AI
-- **File Upload Support**: Handle images, videos, audio, and documents
-- **Real-time Streaming**: Stream AI responses for better user experience
-- **Dark Theme**: Beautiful dark-themed interface with smooth animations
+### Core AI Capabilities
+- **Advanced AI Chat**: Google Gemini AI integration with streaming responses
+- **Web Search Integration**: Real-time web search using Perplexity AI with citations
+- **Multi-Image Editing**: Edit multiple images simultaneously (up to 10) with AI
+- **Prompt Enhancement**: AI-powered prompt improvement for better results
+- **Image Generation**: Create images using OpenAI GPT or Wavespeed Flux models
+- **Single Image Editing**: Edit individual images with natural language
+- **Video Processing**: Upload, download, and analyze video content
+- **Audio Analysis**: Process and analyze audio files
+- **Multi-Modal Support**: Handle images, videos, audio, and documents
 
 ### Advanced Features
-- **Aspect Ratio Preservation**: Maintains original image dimensions during editing
-- **Image Comparison**: Side-by-side comparison of original and edited images
-- **Multiple AI Models**: Toggle between different AI providers
-- **Settings Panel**: Customize AI behavior and image generation parameters
-- **Loading Animations**: Professional placeholder animations during processing
-- **Mobile Responsive**: Fully responsive design for all devices
+- **Web Search Results**: 
+  - Rich search results with sources and citations
+  - Related images gallery with lightbox view
+  - "People Also Ask" section with auto-submit
+  - Search progress animations
+- **Multi-Image Workflow**:
+  - Visual image selector with checkbox UI
+  - Select all/deselect all functionality
+  - Combine and transform multiple images
+- **Chat Session Management**: 
+  - Persistent chat history
+  - Multiple concurrent sessions
+  - Local storage with compression
+- **Media Persistence**: 
+  - Images, videos, and audio saved locally
+  - Drag & drop file upload
+  - File size validation
+- **Enhanced UI/UX**:
+  - Dark theme with smooth animations
+  - Responsive design for all devices
+  - Loading placeholders and progress indicators
+  - Toast notifications
+  - Keyboard shortcuts
 
 ## 📋 Prerequisites
 
@@ -27,20 +46,21 @@
 - **npm**: v10.0.0 or higher
 - **Git**: For cloning the repository
 - **API Keys**: Required for AI services (see Environment Setup)
+- **Storage**: ~500MB for dependencies and media files
 
 ## 🛠️ Installation
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/ajwestfield/veo3-agent-v1.git
-cd veo3-agent-v1
+git clone https://github.com/ajwestfield/veo3-agent-v2.git
+cd veo3-agent-v2
 ```
 
-### 2. Checkout the Working Version
+### 2. Checkout the Stable Version
 
 ```bash
-git checkout tags/image-generation-and-editing-working -b stable-version
+git checkout tags/web-search-working-and-multi-edit-image-and-prompt-enhancer -b stable-v2
 ```
 
 ### 3. Install Dependencies
@@ -49,31 +69,34 @@ git checkout tags/image-generation-and-editing-working -b stable-version
 npm install
 ```
 
+This will automatically install all dependencies including the yt-dlp binary for video processing.
+
 ### 4. Environment Setup
 
 Create a `.env.local` file in the root directory with the following variables:
 
 ```env
-# Google Gemini AI API Key
+# Google Gemini AI API Key (Required)
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# OpenAI API Key (for GPT-Image-1 image generation)
+# OpenAI API Key (Optional - for GPT image generation)
 OPENAI_API_KEY=your_openai_api_key_here
 
-# Wavespeed API Key (for advanced image generation and editing)
+# Wavespeed API Key (Required for image editing)
 WAVESPEED_API_KEY=your_wavespeed_api_key_here
+
+# Perplexity API Key (Required for web search)
+PERPLEXITY_API_KEY=your_perplexity_api_key_here
 ```
 
-#### 🔐 Secure API Key Access using Desktop Commander MCP
+#### 🔐 Getting API Keys
 
-For enhanced security, you can use the desktop-commander MCP tool to access API keys from the original project without exposing them:
+1. **Google Gemini AI**: https://makersuite.google.com/app/apikey
+2. **OpenAI**: https://platform.openai.com/api-keys
+3. **Wavespeed**: https://wavespeed.ai/
+4. **Perplexity**: https://www.perplexity.ai/settings/api
 
-1. Ensure you have desktop-commander MCP installed
-2. Navigate to the original veo3-agent project on your desktop
-3. Use the MCP to read the `.env.local` file securely
-4. Copy the API keys to your new project's `.env.local`
-
-**Note**: Never commit your `.env.local` file to version control.
+**Security Note**: Never commit your `.env.local` file to version control.
 
 ## 🚀 Running the Application
 
@@ -95,52 +118,96 @@ npm start
 ## 📁 Project Structure
 
 ```
-veo3-agent-v1/
-├── app/                      # Next.js 15 App Router
-│   ├── api/                  # API Routes
-│   │   ├── chat/            # Main chat endpoint with Gemini AI
-│   │   ├── generate-image/  # Image generation endpoint
-│   │   ├── edit-image/      # Image editing endpoint
-│   │   ├── process-video/   # Video processing endpoint
-│   │   └── test-gemini/     # API testing endpoint
-│   ├── globals.css          # Global styles and animations
-│   ├── layout.tsx           # Root layout with providers
-│   └── page.tsx             # Main chat interface
-├── components/              # React Components
-│   ├── ui/                  # 50+ shadcn/ui components
-│   ├── image-edit-modal.tsx # Image editing interface
-│   ├── image-comparison-modal.tsx # Before/after comparison
-│   ├── image-processing-placeholder.tsx # Loading animations
-│   ├── notification.tsx     # Toast notifications
-│   └── settings.tsx         # Settings panel
-├── contexts/                # React Context Providers
-│   ├── images-context.tsx   # Image state management
-│   └── settings-context.tsx # Settings state management
-├── lib/                     # Utility Functions
-│   ├── utils.ts            # General utilities
-│   └── image-utils.ts      # Image processing utilities
-├── public/                  # Static Assets
-│   └── generated-images/    # Generated images storage
-├── test-*.sh               # Test Scripts
-└── middleware.ts           # Next.js middleware for uploads
+veo3-agent-v2/
+├── app/                         # Next.js 15 App Router
+│   ├── api/                     # API Routes
+│   │   ├── chat/               # Main chat endpoint with Gemini AI
+│   │   ├── search-web/         # Web search with Perplexity AI
+│   │   ├── edit-multi-images/  # Multi-image editing endpoint
+│   │   ├── enhance-prompt/     # Prompt enhancement endpoint
+│   │   ├── generate-image/     # Image generation endpoint
+│   │   ├── edit-image/         # Single image editing endpoint
+│   │   ├── download-video/     # Video download endpoint
+│   │   ├── process-video/      # Video processing endpoint
+│   │   └── analyze-audio/      # Audio analysis endpoint
+│   ├── globals.css             # Global styles and animations
+│   ├── layout.tsx              # Root layout with providers
+│   └── page.tsx                # Main chat interface
+├── components/                  # React Components
+│   ├── ui/                     # 50+ shadcn/ui components
+│   ├── web-search-results.tsx  # Web search display component
+│   ├── multi-image-edit-modal.tsx      # Multi-image editor
+│   ├── multi-edit-comparison-modal.tsx # Before/after comparison
+│   ├── image-edit-modal.tsx    # Single image editor
+│   ├── image-comparison-modal.tsx      # Image comparison view
+│   ├── settings.tsx            # Settings panel
+│   └── notification.tsx        # Toast notifications
+├── contexts/                    # React Context Providers
+│   ├── chat-sessions-context.tsx # Chat history management
+│   ├── images-context.tsx      # Image state management
+│   ├── videos-context.tsx      # Video state management
+│   ├── audios-context.tsx      # Audio state management
+│   └── settings-context.tsx    # Settings state management
+├── hooks/                       # Custom React Hooks
+│   └── use-local-storage.ts    # Persistent storage hook
+├── lib/                         # Utility Functions
+│   ├── chat-storage-utils.ts   # Chat storage compression
+│   ├── media-storage.ts        # Media file management
+│   ├── image-utils.ts          # Image processing
+│   └── utils.ts                # General utilities
+├── public/                      # Static Assets
+│   ├── generated-images/       # AI-generated images
+│   └── sample-audio/           # Sample audio files
+├── scripts/                     # Setup Scripts
+│   └── setup-ytdlp.js          # yt-dlp installation
+└── middleware.ts               # Next.js middleware
 ```
 
 ## 🔌 API Endpoints
 
 ### POST `/api/chat`
-Main chat endpoint with multi-modal support.
+Main chat endpoint with multi-modal support and tool integration.
 
 **Features**:
 - Text chat with Gemini AI
 - File upload support (images, videos, documents)
-- Tool integration (image generation)
+- Tool integration (image generation, web search)
 - Streaming responses
 
-**Request** (FormData):
-- `message`: User message
-- `files[]`: Optional file uploads
-- `selectedTool`: Optional tool selection
-- `imageGenerationSettings`: Settings for image generation
+### POST `/api/search-web`
+Web search using Perplexity AI.
+
+**Request Body**:
+```json
+{
+  "query": "latest AI developments",
+  "searchMode": "web",
+  "return_images": true,
+  "return_related_questions": true
+}
+```
+
+### POST `/api/edit-multi-images`
+Edit multiple images simultaneously.
+
+**Request Body**:
+```json
+{
+  "imageUrls": ["url1", "url2", "..."],
+  "prompt": "Combine these into a collage"
+}
+```
+
+### POST `/api/enhance-prompt`
+Enhance prompts using AI for better results.
+
+**Request Body**:
+```json
+{
+  "prompt": "make it red",
+  "chatHistory": []
+}
+```
 
 ### POST `/api/generate-image`
 Generate images using AI models.
@@ -148,164 +215,166 @@ Generate images using AI models.
 **Request Body**:
 ```json
 {
-  "prompt": "A beautiful sunset over mountains",
-  "imageGenerationModel": "wavespeed", // or "openai"
+  "prompt": "A futuristic city at sunset",
+  "imageGenerationModel": "wavespeed",
   "size": "1024x1024",
-  "quality": "high",
-  "style": "vivid"
+  "quality": "high"
 }
 ```
 
-### POST `/api/edit-image`
-Edit existing images with natural language.
+### POST `/api/download-video`
+Download videos from URLs.
 
 **Request Body**:
 ```json
 {
-  "imageUrl": "https://example.com/image.jpg",
-  "prompt": "Make it look like a painting",
-  "size": "1024x1024" // Optional, for aspect ratio preservation
+  "url": "https://example.com/video.mp4",
+  "format": "mp4"
 }
 ```
 
-### POST `/api/process-video`
-Process video files for analysis.
+## 🎨 UI Features
 
-**Request Body**:
-```json
-{
-  "url": "https://example.com/video.mp4"
-}
-```
+### Web Search Interface
+- **Search Progress**: Animated indicators during search
+- **Rich Results**: Citations with favicons and domains
+- **Image Gallery**: Grid view with lightbox
+- **Related Questions**: Click to auto-submit
 
-## 🧪 Test Scripts
+### Multi-Image Editor
+- **Visual Selection**: Checkbox grid interface
+- **Batch Operations**: Select/deselect all
+- **Preview**: See selected images before editing
+- **Progress Tracking**: Real-time editing status
 
-The project includes comprehensive test scripts:
+### Chat Interface
+- **Message History**: Persistent across sessions
+- **File Attachments**: Drag & drop support
+- **Tool Integration**: Seamless AI tool usage
+- **Responsive Design**: Works on all devices
 
+## ⚙️ Configuration
+
+### Settings Panel
+- **AI Model Selection**: Choose between providers
+- **Image Models**: OpenAI vs Wavespeed
+- **Search Settings**: Configure web search behavior
+- **Display Options**: UI customization
+- **Storage Management**: Clear cached data
+
+### File Limits
+- **Images**: Max 20MB per file
+- **Videos**: Max 200MB per file
+- **Audio**: Max 50MB per file
+- **Batch Operations**: Max 10 images for multi-edit
+
+## 🧪 Testing
+
+### Test Scripts
 ```bash
 # Test basic setup
 ./test-setup.sh
 
-# Test Gemini API connection
-./test-gemini.sh
+# Test web search
+curl -X POST http://localhost:3000/api/search-web \
+  -H "Content-Type: application/json" \
+  -d '{"query": "AI news"}'
 
-# Test image generation
-./test-image-generation.sh
+# Test multi-image edit
+./test-multi-image-edit.sh
 
-# Test image editing
-./test-edit-image-size.sh
+# Test prompt enhancement
+./test-enhance-prompt.sh
 
-# Test aspect ratio preservation
-./test-aspect-ratio.sh
-
-# Test animations
-./test-animation-placeholders.sh
-
-# Test video processing
-./test-video-upload.sh
-
-# Test streaming responses
-./test-streaming.sh
+# Test all features
+./test-comprehensive.sh
 ```
-
-## 🎨 UI Components
-
-### Key Components
-- **Chat Interface**: Main conversation view with message history
-- **Settings Panel**: Configure AI models and parameters
-- **Image Edit Modal**: Interface for editing images with prompts
-- **Image Comparison Modal**: Compare original and edited images
-- **Loading Placeholders**: Beautiful animations during processing
-
-### Component Library
-Built with **shadcn/ui** components:
-- 50+ reusable components
-- Radix UI primitives
-- Tailwind CSS styling
-- Full accessibility support
-
-## ⚙️ Configuration
-
-### Settings Available
-- **AI Model Selection**: Choose between AI providers
-- **Image Generation Model**: OpenAI or Wavespeed
-- **Image Size**: Various aspect ratios
-- **Quality Settings**: Low, Medium, High
-- **Style Options**: Vivid or Natural
-- **Safety Settings**: Content filtering levels
-
-### Customization
-All settings are persisted locally and can be accessed through the settings panel.
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **Webpack Module Errors**
-   ```bash
-   rm -rf .next node_modules/.cache
-   npm run dev
-   ```
+1. **Web Search Not Working**
+   - Verify PERPLEXITY_API_KEY is set correctly
+   - Check API quota and billing
+   - Test with curl command above
 
-2. **API Key Issues**
-   - Ensure all API keys are correctly set in `.env.local`
-   - Check API key permissions and quotas
-   - Verify billing is enabled for paid APIs
+2. **Multi-Image Edit Fails**
+   - Ensure WAVESPEED_API_KEY is configured
+   - Check image URLs are accessible
+   - Verify image count ≤ 10
 
-3. **Build Errors**
-   - Clear Next.js cache: `rm -rf .next`
-   - Reinstall dependencies: `rm -rf node_modules && npm install`
+3. **Storage Issues**
+   - Clear browser local storage
+   - Check available disk space
+   - Use storage management in settings
 
-4. **File Upload Limits**
-   - Video files: Max 200MB
-   - Images: Max 20MB
-   - Timeout: 5 minutes for large files
+4. **Video Processing Errors**
+   - Verify yt-dlp is installed: `npx yt-dlp --version`
+   - Check video URL is accessible
+   - Ensure ffmpeg is available for conversions
 
 ## 📊 Technology Stack
 
 ### Frontend
-- **Next.js 15.4.1** - React framework with App Router
+- **Next.js 15.1.3** - React framework with App Router
 - **React 19.0.0** - UI library
 - **TypeScript 5.7.3** - Type safety
 - **Tailwind CSS 3.4.17** - Utility-first styling
-- **Framer Motion** - Animations
-- **Radix UI** - Headless components
+- **Framer Motion 11.15.0** - Animations
+- **Radix UI** - Accessible components
 
 ### AI Integration
-- **Google Gemini AI** - Chat and multi-modal AI
-- **OpenAI API** - GPT-Image-1 image generation
-- **Wavespeed AI** - Advanced image generation and editing
+- **Google Gemini AI** - Chat and analysis
+- **Perplexity AI** - Web search
+- **OpenAI API** - Image generation
+- **Wavespeed AI** - Advanced image editing
 
-### State Management
-- React Context API for global state
-- Local storage for settings persistence
+### Media Processing
+- **yt-dlp** - Video downloading
+- **FFmpeg** - Media conversion
+- **Canvas API** - Image manipulation
 
-## 🔒 Security Notes
+## 🔒 Security & Privacy
 
-1. **API Keys**: Never commit API keys to version control
-2. **File Uploads**: Files are validated and size-limited
-3. **CORS**: API endpoints are protected
-4. **Input Validation**: All user inputs are sanitized
+1. **API Keys**: Stored in environment variables only
+2. **Local Storage**: Media files stored client-side
+3. **Input Validation**: All inputs sanitized
+4. **CORS Protection**: API endpoints secured
+5. **Rate Limiting**: Built-in request throttling
 
-## 📄 License
+## 📈 Performance Optimizations
 
-This project is a snapshot of the veo3-agent application at the point where image generation and editing features are fully functional.
+- **Lazy Loading**: Components loaded on demand
+- **Image Optimization**: Automatic compression
+- **Streaming Responses**: Real-time AI output
+- **Local Caching**: Reduced API calls
+- **Batch Processing**: Efficient multi-operations
 
-## 🤝 Contributing
+## 🚧 Known Limitations
 
-This is a versioned snapshot. For the latest development, please refer to the main repository.
+1. **Browser Storage**: Limited by browser quotas (~50-100MB)
+2. **Concurrent Edits**: One multi-image edit at a time
+3. **Video Size**: 200MB maximum per file
+4. **Search Rate**: Subject to Perplexity API limits
 
-## 📞 Support
+## 📄 Version Information
 
-For issues or questions:
-1. Check the troubleshooting section
-2. Review test scripts for examples
-3. Examine the codebase documentation
+**Version**: 2.0.0  
+**Tag**: `web-search-working-and-multi-edit-image-and-prompt-enhancer`  
+**Release Date**: January 2025  
+**Compatibility**: Node.js 20+, Modern browsers
+
+## 🤝 Recovery Instructions
+
+To restore this exact version after cloning:
+
+1. Clone the repository
+2. Checkout the tag: `git checkout tags/web-search-working-and-multi-edit-image-and-prompt-enhancer`
+3. Install dependencies: `npm install`
+4. Configure `.env.local` with all API keys
+5. Run: `npm run dev`
 
 ---
 
-**Version**: 1.0.0  
-**Tag**: `image-generation-and-editing-working`  
-**Last Updated**: December 2024
-
-Built with ❤️ using Next.js and AI
+Built with ❤️ using Next.js, AI, and modern web technologies

@@ -2,6 +2,9 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { SettingsProvider } from '@/contexts/settings-context'
 import { ImagesProvider } from '@/contexts/images-context'
+import { VideosProvider } from '@/contexts/videos-context'
+import { AudiosProvider } from '@/contexts/audios-context'
+import { ChatSessionsProvider } from '@/contexts/chat-sessions-context'
 
 export const metadata: Metadata = {
   title: 'VEO3 Agent',
@@ -17,9 +20,15 @@ export default function RootLayout({
     <html lang="en">
       <body suppressHydrationWarning>
         <SettingsProvider>
-          <ImagesProvider>
-            {children}
-          </ImagesProvider>
+          <ChatSessionsProvider>
+            <ImagesProvider>
+              <VideosProvider>
+                <AudiosProvider>
+                  {children}
+                </AudiosProvider>
+              </VideosProvider>
+            </ImagesProvider>
+          </ChatSessionsProvider>
         </SettingsProvider>
       </body>
     </html>

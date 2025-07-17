@@ -12,12 +12,12 @@ interface ImageComparisonModalProps {
   prompt: string
 }
 
-export function ImageComparisonModal({ 
-  isOpen, 
-  onClose, 
-  originalUrl, 
-  editedUrl, 
-  prompt 
+export function ImageComparisonModal({
+  isOpen,
+  onClose,
+  originalUrl,
+  editedUrl,
+  prompt
 }: ImageComparisonModalProps) {
   const [activeTab, setActiveTab] = useState("split")
 
@@ -26,11 +26,11 @@ export function ImageComparisonModal({
   return (
     <>
       {/* Modal Backdrop */}
-      <div 
+      <div
         className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
       />
-      
+
       {/* Modal Content */}
       <div className="fixed inset-4 md:inset-8 z-50 flex items-center justify-center">
         <div className="w-full h-full max-w-7xl max-h-[90vh] bg-[#1a1a1a] border border-[#4a4a4a] rounded-lg shadow-xl overflow-hidden">
@@ -40,6 +40,7 @@ export function ImageComparisonModal({
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              aria-label="Close modal"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
                 <path d="M18 6L6 18M6 6l12 12" />
@@ -61,14 +62,14 @@ export function ImageComparisonModal({
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
               <div className="px-4 pt-3">
                 <TabsList className="bg-[#2f2f2f] border border-[#4a4a4a] p-1">
-                  <TabsTrigger 
-                    value="split" 
+                  <TabsTrigger
+                    value="split"
                     className="text-white data-[state=active]:bg-[#404040] data-[state=active]:text-white"
                   >
                     Split Screen
                   </TabsTrigger>
-                  <TabsTrigger 
-                    value="slider" 
+                  <TabsTrigger
+                    value="slider"
                     className="text-white data-[state=active]:bg-[#404040] data-[state=active]:text-white"
                   >
                     Slider
@@ -83,9 +84,9 @@ export function ImageComparisonModal({
                     <div className="relative flex flex-col h-full">
                       <h3 className="text-sm font-medium text-white mb-2">Original</h3>
                       <div className="flex-1 bg-black/20 rounded-lg overflow-hidden flex items-center justify-center">
-                        <img 
-                          src={originalUrl} 
-                          alt="Original image" 
+                        <img
+                          src={originalUrl}
+                          alt="Original image"
                           className="max-w-full max-h-full object-contain"
                         />
                       </div>
@@ -95,9 +96,9 @@ export function ImageComparisonModal({
                     <div className="relative flex flex-col h-full">
                       <h3 className="text-sm font-medium text-white mb-2">Edited</h3>
                       <div className="flex-1 bg-black/20 rounded-lg overflow-hidden flex items-center justify-center">
-                        <img 
-                          src={editedUrl} 
-                          alt="Edited image" 
+                        <img
+                          src={editedUrl}
+                          alt="Edited image"
                           className="max-w-full max-h-full object-contain"
                         />
                       </div>
@@ -117,18 +118,18 @@ export function ImageComparisonModal({
               </TabsContent>
 
               <TabsContent value="slider" className="flex-1 p-4 overflow-hidden mt-0">
-                <div className="h-full flex flex-col">
+                <div className="h-full flex flex-col items-center justify-center">
                   <div className="text-center mb-4">
                     <p className="text-sm text-gray-400">Drag the slider to compare images</p>
                   </div>
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="p-4 border rounded-3xl bg-black/20 border-[#4a4a4a]">
+                  <div className="w-full h-full max-w-full max-h-full flex items-center justify-center">
+                    <div className="relative w-full h-full max-w-[80vw] max-h-[70vh] aspect-square">
                       <Compare
                         firstImage={editedUrl}
                         secondImage={originalUrl}
-                        firstImageClassName="object-cover object-left-top"
-                        secondImageClassname="object-cover object-left-top"
-                        className="h-[250px] w-[200px] md:h-[500px] md:w-[500px]"
+                        firstImageClassName="object-contain"
+                        secondImageClassname="object-contain"
+                        className="w-full h-full"
                         slideMode="drag"
                         autoplay={false}
                         showHandlebar={true}

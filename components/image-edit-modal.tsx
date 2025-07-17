@@ -115,6 +115,7 @@ export function ImageEditModal({ isOpen, onClose, imageUrl, onEditComplete }: Im
                 onClick={onClose}
                 className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
                 disabled={isEditing}
+                aria-label="Close modal"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
                   <path d="M18 6L6 18M6 6l12 12" />

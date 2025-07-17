@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
       imageGenerationModel = 'openai',
       size = "1024x1024", 
       quality, 
-      style = "vivid", 
       openaiModel = "gpt-image-1",
       guidanceScale = 3.5,
       safetyTolerance = "2"
@@ -167,14 +166,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate style parameter
-    const validStyles = ["vivid", "natural"]
-    if (!validStyles.includes(style)) {
-      return NextResponse.json(
-        { error: "Invalid style. Must be either 'vivid' or 'natural'" },
-        { status: 400 }
-      )
-    }
+    // Note: style parameter is not supported by OpenAI's image generation API
+    // Style validation removed as it's not used
 
     // Build parameters based on model
     const generateParams: any = {
@@ -186,7 +179,8 @@ export async function POST(request: NextRequest) {
 
     // Add parameters for gpt-image-1
     generateParams.quality = finalQuality as any
-    generateParams.style = style
+    // Note: style parameter is not supported by OpenAI's image generation API
+    // generateParams.style = style
 
     // Generate image with fallback
     let response
@@ -259,7 +253,7 @@ export async function POST(request: NextRequest) {
       requestedModel: model,
       size,
       quality: finalQuality,
-      style: style,
+      // style parameter removed as it's not supported by OpenAI's API
     })
   } catch (error) {
     // Handle specific OpenAI errors

@@ -1,13 +1,13 @@
 "use client"
 
 import * as React from "react"
-import * as TooltipPrimitive from "@radix-ui/react-tooltip"
-import * as PopoverPrimitive from "@radix-ui/react-popover"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "./tooltip-safe"
+import { Popover, PopoverTrigger, PopoverContent } from "./popover-safe"
+import { Dialog, DialogPortal, DialogOverlay, DialogTrigger, DialogContent } from "./dialog-safe"
 import { cn } from "@/lib/utils"
 import { YouTubeEmbed } from "@next/third-parties/google"
 
-interface UploadedFile {
+export interface UploadedFile {
   id: string
   file: File
   thumbnail: string
@@ -15,98 +15,6 @@ interface UploadedFile {
   videoUrl?: string
   isLoading?: boolean
 }
-
-const TooltipProvider = TooltipPrimitive.Provider
-const Tooltip = TooltipPrimitive.Root
-const TooltipTrigger = TooltipPrimitive.Trigger
-
-const TooltipContent = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & { showArrow?: boolean }
->(({ className, sideOffset = 4, showArrow = false, ...props }, ref) => (
-  <TooltipPrimitive.Portal>
-    <TooltipPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      className={cn(
-        "relative z-50 max-w-[280px] rounded-md bg-[#404040] text-white px-1.5 py-1 text-xs animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        className,
-      )}
-      {...props}
-    >
-      {props.children}
-      {showArrow && <TooltipPrimitive.Arrow className="-my-px fill-popover" />}
-    </TooltipPrimitive.Content>
-  </TooltipPrimitive.Portal>
-))
-TooltipContent.displayName = TooltipPrimitive.Content.displayName
-
-const Popover = PopoverPrimitive.Root
-const PopoverTrigger = PopoverPrimitive.Trigger
-
-const PopoverContent = React.forwardRef<
-  React.ElementRef<typeof PopoverPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
->(({ className, align = "center", sideOffset = 4, ...props }, ref) => (
-  <PopoverPrimitive.Portal>
-    <PopoverPrimitive.Content
-      ref={ref}
-      align={align}
-      sideOffset={sideOffset}
-      className={cn(
-        "z-50 w-64 rounded-xl bg-[#404040] p-2 text-white shadow-md outline-none animate-in data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        className,
-      )}
-      {...props}
-    />
-  </PopoverPrimitive.Portal>
-))
-PopoverContent.displayName = PopoverPrimitive.Content.displayName
-
-const Dialog = DialogPrimitive.Root
-const DialogPortal = DialogPrimitive.Portal
-const DialogTrigger = DialogPrimitive.Trigger
-
-const DialogOverlay = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Overlay
-    ref={ref}
-    className={cn(
-      "fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      className,
-    )}
-    {...props}
-  />
-))
-DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
-
-const DialogContent = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-[90vw] md:max-w-[800px] translate-x-[-50%] translate-y-[-50%] gap-4 border-none bg-transparent p-0 shadow-none duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-        className,
-      )}
-      {...props}
-    >
-      <div className="relative bg-[#2f2f2f] rounded-[28px] overflow-hidden shadow-2xl p-1">
-        {children}
-        <DialogPrimitive.Close className="absolute right-3 top-3 z-10 rounded-full bg-background/50 dark:bg-[#303030] p-1 hover:bg-accent dark:hover:bg-[#515151] transition-all">
-          <XIcon className="h-5 w-5 text-muted-foreground dark:text-gray-200 hover:text-foreground dark:hover:text-white" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
-      </div>
-    </DialogPrimitive.Content>
-  </DialogPortal>
-))
-DialogContent.displayName = DialogPrimitive.Content.displayName
 
 const PlusIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
@@ -238,6 +146,60 @@ const LightbulbIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+const SparklesIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+    <path d="M5 3v4" />
+    <path d="M19 17v4" />
+    <path d="M3 5h4" />
+    <path d="M17 19h4" />
+  </svg>
+)
+
+const UndoIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M9 14 4 9l5-5" />
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
+  </svg>
+)
+
+const RedoIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="m15 14 5-5-5-5" />
+    <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13" />
+  </svg>
+)
+
 const MicIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     width="24"
@@ -270,17 +232,45 @@ const getYouTubeVideoId = (url: string): string | null => {
   return match && match[2].length === 11 ? match[2] : null
 }
 
-export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
-  ({ className, ...props }, ref) => {
+interface PromptBoxProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  chatHistory?: Array<{ role: string; content: string }>
+  onFilesChange?: (files: UploadedFile[]) => void
+  selectedTool?: string | null
+  onToolChange?: (tool: string | null) => void
+}
+
+export const PromptBox = React.forwardRef<HTMLTextAreaElement, PromptBoxProps>(
+  ({ className, chatHistory = [], onFilesChange, selectedTool: externalSelectedTool, onToolChange, ...props }, ref) => {
     const internalTextareaRef = React.useRef<HTMLTextAreaElement>(null)
     const fileInputRef = React.useRef<HTMLInputElement>(null)
     const [value, setValue] = React.useState("")
     const [uploadedFiles, setUploadedFiles] = React.useState<UploadedFile[]>([])
     const [isDragOver, setIsDragOver] = React.useState(false)
-    const [selectedTool, setSelectedTool] = React.useState<string | null>(null)
+    const [selectedTool, setSelectedTool] = React.useState<string | null>(externalSelectedTool || null)
     const [isPopoverOpen, setIsPopoverOpen] = React.useState(false)
     const [selectedFilePreview, setSelectedFilePreview] = React.useState<UploadedFile | null>(null)
     const [isFileDialogOpen, setIsFileDialogOpen] = React.useState(false)
+    const [isProcessingPaste, setIsProcessingPaste] = React.useState(false)
+    
+    // Prompt enhancement states
+    const [promptHistory, setPromptHistory] = React.useState<string[]>([])
+    const [historyIndex, setHistoryIndex] = React.useState(-1)
+    const [isEnhancing, setIsEnhancing] = React.useState(false)
+    const [hasEnhanced, setHasEnhanced] = React.useState(false)
+    
+    // Sync external selectedTool changes
+    React.useEffect(() => {
+      if (externalSelectedTool !== undefined) {
+        setSelectedTool(externalSelectedTool)
+      }
+    }, [externalSelectedTool])
+    
+    // Notify parent when files change
+    React.useEffect(() => {
+      if (onFilesChange) {
+        onFilesChange(uploadedFiles)
+      }
+    }, [uploadedFiles, onFilesChange])
 
     React.useEffect(() => {
       return () => {
@@ -306,6 +296,95 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setValue(e.target.value)
       if (props.onChange) props.onChange(e)
+      
+      // Reset enhancement state when user manually edits
+      if (hasEnhanced) {
+        setHasEnhanced(false)
+        setPromptHistory([])
+        setHistoryIndex(-1)
+      }
+    }
+    
+    const handleEnhancePrompt = async () => {
+      if (!value.trim() || isEnhancing) return
+      
+      setIsEnhancing(true)
+      
+      try {
+        // Save current prompt to history
+        const newHistory = [...promptHistory.slice(0, historyIndex + 1), value]
+        setPromptHistory(newHistory)
+        setHistoryIndex(newHistory.length - 1)
+        
+        // Use the chat history from props
+        
+        const response = await fetch('/api/enhance-prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: value,
+            chatHistory
+          })
+        })
+        
+        if (!response.ok) {
+          throw new Error('Failed to enhance prompt')
+        }
+        
+        const data = await response.json()
+        
+        // Update the value with enhanced prompt
+        setValue(data.enhancedPrompt)
+        
+        // Add enhanced prompt to history
+        const updatedHistory = [...newHistory, data.enhancedPrompt]
+        setPromptHistory(updatedHistory)
+        setHistoryIndex(updatedHistory.length - 1)
+        setHasEnhanced(true)
+        
+        // Trigger onChange if needed
+        if (props.onChange) {
+          const syntheticEvent = {
+            target: { value: data.enhancedPrompt }
+          } as React.ChangeEvent<HTMLTextAreaElement>
+          props.onChange(syntheticEvent)
+        }
+      } catch (error) {
+        console.error('Error enhancing prompt:', error)
+        // Optionally show error toast/notification
+      } finally {
+        setIsEnhancing(false)
+      }
+    }
+    
+    const handleUndo = () => {
+      if (historyIndex > 0) {
+        const newIndex = historyIndex - 1
+        setHistoryIndex(newIndex)
+        setValue(promptHistory[newIndex])
+        
+        if (props.onChange) {
+          const syntheticEvent = {
+            target: { value: promptHistory[newIndex] }
+          } as React.ChangeEvent<HTMLTextAreaElement>
+          props.onChange(syntheticEvent)
+        }
+      }
+    }
+    
+    const handleRedo = () => {
+      if (historyIndex < promptHistory.length - 1) {
+        const newIndex = historyIndex + 1
+        setHistoryIndex(newIndex)
+        setValue(promptHistory[newIndex])
+        
+        if (props.onChange) {
+          const syntheticEvent = {
+            target: { value: promptHistory[newIndex] }
+          } as React.ChangeEvent<HTMLTextAreaElement>
+          props.onChange(syntheticEvent)
+        }
+      }
     }
 
     const handlePlusClick = () => {
@@ -393,29 +472,65 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
       setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId))
     }
 
+    const handleDragEnter = (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      console.log('[DragEnter] Event triggered')
+      setIsDragOver(true)
+    }
+
     const handleDragOver = (e: React.DragEvent) => {
       e.preventDefault()
+      e.stopPropagation()
+      e.dataTransfer.dropEffect = 'copy'
+      console.log('[DragOver] Event triggered')
       setIsDragOver(true)
     }
 
     const handleDragLeave = (e: React.DragEvent) => {
       e.preventDefault()
-      setIsDragOver(false)
+      e.stopPropagation()
+      console.log('[DragLeave] Event triggered')
+      
+      // Check if we're truly leaving the drop zone
+      const relatedTarget = e.relatedTarget as Node
+      if (!e.currentTarget.contains(relatedTarget)) {
+        setIsDragOver(false)
+      }
     }
 
     const handleDrop = (e: React.DragEvent) => {
       e.preventDefault()
+      e.stopPropagation()
+      console.log('[Drop] Event triggered', e.dataTransfer.files)
       setIsDragOver(false)
+      
       const files = Array.from(e.dataTransfer.files)
-      processFiles(files)
+      console.log('[Drop] Files:', files)
+      if (files.length > 0) {
+        processFiles(files)
+      }
     }
 
     const handlePaste = async (e: React.ClipboardEvent) => {
+      // Prevent duplicate processing
+      if (isProcessingPaste) {
+        console.log("[Video URL Paste] Already processing a paste, ignoring duplicate")
+        return
+      }
+      
       const pastedText = e.clipboardData.getData("text")
-      const urlRegex = /^(https?:\/\/[^\s/$.?#].[^\s]*)$/i
-      if (urlRegex.test(pastedText)) {
+      // Updated regex to match social media video URLs
+      const videoUrlRegex = /https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|twitter\.com\/\w+\/status\/|x\.com\/\w+\/status\/|instagram\.com\/(?:p|reel|tv)\/|tiktok\.com\/(?:[@\w.-]+\/video\/\d+|t\/[\w]+)|vm\.tiktok\.com\/[\w]+|facebook\.com\/(?:watch\/?\?v=|\w+\/videos\/)|fb\.com\/(?:watch\/?\?v=|\w+\/videos\/)|fb\.watch\/|vimeo\.com\/\d+|dailymotion\.com\/video\/|reddit\.com\/r\/\w+\/comments\/|twitch\.tv\/videos\/|streamable\.com\/\w+)[\w\-._~:/?#[\]@!$&'()*+,;=%?&=]*/i
+      
+      if (videoUrlRegex.test(pastedText)) {
         e.preventDefault()
-        const url = pastedText
+        const url = pastedText.trim()
+        
+        console.log("[Video URL Paste] Detected video URL:", url)
+        console.log("[Video URL Paste] URL matches regex:", videoUrlRegex.test(url))
+        
+        setIsProcessingPaste(true)
 
         const id = Math.random().toString(36).substr(2, 9)
         const tempFile: UploadedFile = {
@@ -428,35 +543,114 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
         setUploadedFiles((prev) => [...prev, tempFile])
 
         try {
-          const response = await fetch("/api/process-video", {
+          console.log("[Video URL Paste] Calling API with URL:", url)
+          const response = await fetch("/api/download-video", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url }),
           })
 
           if (!response.ok) {
-            const errorBody = await response.text()
-            console.error("API Error:", response.status, errorBody)
-            throw new Error("Failed to start video processing")
+            const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
+            console.error("API Error:", response.status, errorData)
+            throw new Error(errorData.error || "Failed to download video")
           }
 
-          const { videoUrl, thumbnailUrl } = await response.json()
+          const data = await response.json()
+          
+          if (data.success && data.video) {
+            // Convert base64 to blob
+            const base64Response = await fetch(data.video.dataUrl)
+            const blob = await base64Response.blob()
+            
+            // Create File object
+            const videoFile = new File([blob], data.video.filename || "video.mp4", { type: 'video/mp4' })
+            
+            // Create video element to generate thumbnail
+            const videoUrl = URL.createObjectURL(blob)
+            const video = document.createElement("video")
+            video.src = videoUrl
+            const canvas = document.createElement("canvas")
+            const ctx = canvas.getContext("2d")
 
-          setUploadedFiles((prev) =>
-            prev.map((f) =>
-              f.id === id
-                ? {
-                    ...f,
-                    thumbnail: thumbnailUrl,
-                    videoUrl: videoUrl,
-                    isLoading: false,
-                  }
-                : f,
-            ),
-          )
+            video.onloadedmetadata = () => {
+              video.currentTime = Math.min(1, video.duration / 2)
+            }
+
+            video.onseeked = () => {
+              if (ctx) {
+                canvas.width = video.videoWidth
+                canvas.height = video.videoHeight
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+                const thumbnail = canvas.toDataURL("image/jpeg", 0.8)
+                
+                setUploadedFiles((prev) =>
+                  prev.map((f) =>
+                    f.id === id
+                      ? {
+                          id: f.id,
+                          file: videoFile,
+                          thumbnail,
+                          type: "video",
+                          videoUrl,
+                          isLoading: false,
+                        }
+                      : f,
+                  ),
+                )
+              }
+              // Clean up the temporary video URL after thumbnail generation
+              URL.revokeObjectURL(videoUrl)
+            }
+
+            video.onerror = () => {
+              // If thumbnail generation fails, still update the file
+              setUploadedFiles((prev) =>
+                prev.map((f) =>
+                  f.id === id
+                    ? {
+                        id: f.id,
+                        file: videoFile,
+                        thumbnail: "",
+                        type: "video",
+                        videoUrl,
+                        isLoading: false,
+                      }
+                    : f,
+                ),
+              )
+              URL.revokeObjectURL(videoUrl)
+            }
+          } else {
+            throw new Error("Invalid response format")
+          }
         } catch (error) {
-          console.error("Error processing video from URL:", error)
+          console.error("Error downloading video from URL:", error)
+          
+          // More detailed error handling
+          let errorMessage = "Failed to download video"
+          if (error instanceof Error) {
+            errorMessage = error.message
+            
+            // Add more context for common errors
+            if (errorMessage.includes("private") || errorMessage.includes("unavailable")) {
+              errorMessage = "This video is private or has been removed"
+            } else if (errorMessage.includes("geo-restricted")) {
+              errorMessage = "This video is geo-restricted in your location"
+            } else if (errorMessage.includes("authentication")) {
+              errorMessage = "This video requires login to access"
+            } else if (errorMessage.includes("platform is not supported")) {
+              errorMessage = "This video platform is not supported or the URL format is not recognized"
+            } else if (errorMessage.includes("size limit")) {
+              errorMessage = "Video exceeds the 1GB size limit"
+            }
+          }
+          
+          console.error("Detailed error:", errorMessage)
+          alert(`Video download failed: ${errorMessage}`)
           setUploadedFiles((prev) => prev.filter((f) => f.id !== id))
+        } finally {
+          setIsProcessingPaste(false)
         }
       }
     }
@@ -468,11 +662,12 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
     return (
       <div
         className={cn(
-          "flex flex-col rounded-[28px] p-2 shadow-sm transition-colors bg-[#2f2f2f] border text-white cursor-text",
-          isDragOver ? "border-blue-500 bg-[#3a3a3a]" : "border-[#4a4a4a]",
+          "relative flex flex-col rounded-[28px] p-2 shadow-sm transition-all duration-200 bg-[#2f2f2f] border text-white cursor-text",
+          isDragOver ? "border-blue-500 bg-[#3a3a3a] scale-[1.02]" : "border-[#4a4a4a]",
           className,
         )}
         onClick={() => internalTextareaRef.current?.focus()}
+        onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -484,7 +679,21 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
           className="hidden"
           accept="image/*,video/*,audio/*"
           multiple
+          aria-label="Upload files"
+          title="Upload image, video, or audio files"
         />
+
+        {isDragOver && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center rounded-[28px] bg-blue-500/20 backdrop-blur-sm border-2 border-dashed border-blue-500">
+            <div className="flex flex-col items-center gap-2 text-white">
+              <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <p className="text-lg font-medium">Drop files here</p>
+              <p className="text-sm text-white/80">Images, videos, and audio files supported</p>
+            </div>
+          </div>
+        )}
 
         {uploadedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2 px-1">
@@ -570,7 +779,7 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
           value={value}
           onChange={handleInputChange}
           onPaste={handlePaste}
-          placeholder="Ask anything..."
+          placeholder="Ask anything or paste a video URL..."
           className="custom-scrollbar w-full resize-none border-0 bg-transparent p-3 text-white placeholder:text-gray-400 focus:ring-0 focus-visible:outline-none min-h-12"
           {...props}
         />
@@ -590,7 +799,7 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
                   </button>
                 </TooltipTrigger>
                 {uploadedFiles.length === 0 && (
-                  <TooltipContent side="top" showArrow={true}>
+                  <TooltipContent side="top">
                     <p>Attach files</p>
                   </TooltipContent>
                 )}
@@ -599,30 +808,32 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
               <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex h-8 items-center gap-2 rounded-full p-2 text-sm text-white transition-colors hover:bg-[#404040] focus-visible:outline-none focus-visible:ring-ring"
-                      >
-                        <Settings2Icon className="h-4 w-4" />
-                        {!selectedTool && "Tools"}
-                      </button>
+                    <PopoverTrigger
+                      type="button"
+                      className="flex h-8 items-center gap-2 rounded-full p-2 text-sm text-white transition-colors hover:bg-[#404040] focus-visible:outline-none focus-visible:ring-ring"
+                    >
+                      <Settings2Icon className="h-4 w-4" />
+                      {!selectedTool && "Tools"}
                     </PopoverTrigger>
                   </TooltipTrigger>
                   {!selectedTool && (
-                    <TooltipContent side="top" showArrow={true}>
+                    <TooltipContent side="top">
                       <p>Explore Tools</p>
                     </TooltipContent>
                   )}
                 </Tooltip>
-                <PopoverContent side="top" align="start">
+                <PopoverContent align="start">
                   <div className="flex flex-col gap-1">
                     {toolsList.map((tool) => (
                       <button
                         key={tool.id}
                         onClick={() => {
-                          setSelectedTool(tool.id)
+                          const newTool = tool.id
+                          setSelectedTool(newTool)
                           setIsPopoverOpen(false)
+                          if (onToolChange) {
+                            onToolChange(newTool)
+                          }
                         }}
                         className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-[#404040]"
                       >
@@ -641,8 +852,13 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
                 <>
                   <div className="h-4 w-px bg-gray-600" />
                   <button
-                    onClick={() => setSelectedTool(null)}
-                    className="flex h-8 items-center gap-2 rounded-full px-2 text-sm hover:bg-[#404040] cursor-pointer text-[#99ceff] transition-colors flex-row items-center justify-center"
+                    onClick={() => {
+                      setSelectedTool(null)
+                      if (onToolChange) {
+                        onToolChange(null)
+                      }
+                    }}
+                    className="flex h-8 items-center justify-center gap-2 rounded-full px-2 text-sm hover:bg-[#404040] cursor-pointer text-[#99ceff] transition-colors"
                   >
                     {ActiveToolIcon && <ActiveToolIcon className="h-4 w-4" />}
                     {activeTool.shortName}
@@ -652,6 +868,91 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
               )}
 
               <div className="ml-auto flex items-center gap-2">
+                {/* Prompt Enhancement Controls */}
+                {value.trim() && (
+                  <>
+                    {hasEnhanced && historyIndex > 0 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={handleUndo}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-[#404040] focus-visible:outline-none"
+                          >
+                            <UndoIcon className="h-5 w-5" />
+                            <span className="sr-only">Undo enhancement</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p>Undo</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={handleEnhancePrompt}
+                          disabled={isEnhancing}
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-[#404040] focus-visible:outline-none disabled:opacity-50"
+                        >
+                          {isEnhancing ? (
+                            <svg
+                              className="animate-spin h-5 w-5 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              />
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              />
+                            </svg>
+                          ) : (
+                            <SparklesIcon className="h-5 w-5" />
+                          )}
+                          <span className="sr-only">Enhance prompt</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p>{isEnhancing ? "Enhancing..." : "Enhance prompt"}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    {hasEnhanced && historyIndex < promptHistory.length - 1 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={handleRedo}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-[#404040] focus-visible:outline-none"
+                          >
+                            <RedoIcon className="h-5 w-5" />
+                            <span className="sr-only">Redo enhancement</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p>Redo</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                    
+                    {value.trim() && (
+                      <div className="h-4 w-px bg-gray-600" />
+                    )}
+                  </>
+                )}
+                
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -662,7 +963,7 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
                       <span className="sr-only">Record voice</span>
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" showArrow={true}>
+                  <TooltipContent side="top">
                     <p>Record voice</p>
                   </TooltipContent>
                 </Tooltip>
@@ -678,7 +979,7 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, React.TextareaHTM
                       <span className="sr-only">Send message</span>
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" showArrow={true}>
+                  <TooltipContent side="top">
                     <p>Send</p>
                   </TooltipContent>
                 </Tooltip>

@@ -33,6 +33,26 @@
   background: #555;
 }
 
+/* Enhanced textarea scrollbar */
+.enhanced-textarea-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.enhanced-textarea-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.enhanced-textarea-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.enhanced-textarea-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
 /* Animation classes for better UX */
 @keyframes fade-in {
   from {
@@ -171,4 +191,29 @@
 
 .animate-shimmer {
   animation: shimmer 2s infinite;
+}
+
+/* Drag and drop animations */
+@keyframes zoom-in-90 {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.zoom-in-90 {
+  animation-name: zoom-in-90;
+}
+
+/* Ensure animate-in works with our custom animations */
+.animate-in.fade-in {
+  animation-name: fade-in;
+}
+
+.animate-in.zoom-in-90 {
+  animation-name: zoom-in-90;
 }

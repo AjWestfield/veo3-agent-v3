@@ -26,7 +26,20 @@
       "Bash(cat:*)",
       "WebFetch(domain:doc.wavespeed.ai)",
       "WebFetch(domain:wavespeed.ai)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(git tag:*)",
+      "Bash(gh repo view:*)",
+      "Bash(npx eslint:*)",
+      "Bash(killall:*)",
+      "Bash(kill:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:unpkg.com)",
+      "Bash(pgrep:*)",
+      "Bash(gh auth:*)"
     ],
     "deny": []
   }
