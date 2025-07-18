@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
+import { getVEO3PromptTemplate } from '@/lib/veo3-prompt-template'
 
 // Configure route segment to handle large uploads
 export const maxDuration = 300; // 5 minutes timeout for large uploads
@@ -825,9 +826,15 @@ If no public figures are present, proceed with regular analysis.` })
               const isAutoDetect = numberOfClips === "auto";
               const numClips = isAutoDetect ? null : parseInt(numberOfClips || "1");
               
-              // Add detailed video analysis prompt with celebrity detection
+              // Use the enhanced VEO 3 prompt template for detailed video analysis
               const detailedVideoPrompt = {
-                text: isAutoDetect ? 
+                text: getVEO3PromptTemplate(isAutoDetect, numClips)
+              }
+              
+              // Skip the old template - replaced by enhanced version
+              const skipOldTemplate = false
+              if (skipOldTemplate) {
+                const oldText = isAutoDetect ? 
                   `Analyze this video completely. 
 
 IMPORTANT FIRST STEP - Celebrity/Public Figure Detection:
@@ -958,7 +965,7 @@ CAMERA STYLE: [Explain how the camera behaves. Always specify "one continuous ha
 NEGATIVE_PROMPT: [List what should NOT appear: no text, no captions, no blood, no horror tone, no underwater POV, no jump cuts, etc.]
 
 IMPORTANT: Follow this template exactly. Each section header must be in CAPS followed by a colon. All content should comply with Veo 3's latest guidelines (no violence, no horror, one continuous shot, etc.).`
-              }
+              } // End of skipOldTemplate block
               
               // Insert the detailed prompt at the beginning
               parts.unshift(detailedVideoPrompt)
@@ -1380,9 +1387,15 @@ If no public figures are present, proceed with regular analysis.` })
         const isAutoDetect = numberOfClips === "auto";
         const numClips = isAutoDetect ? null : parseInt(numberOfClips || "1");
         
-        // Add detailed video analysis prompt with celebrity detection
+        // Use the enhanced VEO 3 prompt template for detailed video analysis
         const detailedVideoPrompt = {
-          text: isAutoDetect ? 
+          text: getVEO3PromptTemplate(isAutoDetect, numClips)
+        }
+        
+        // Skip the old template - replaced by enhanced version
+        const skipOldTemplate2 = false
+        if (skipOldTemplate2) {
+          const oldText = isAutoDetect ? 
             `Analyze this video completely. 
 
 IMPORTANT FIRST STEP - Celebrity/Public Figure Detection:
@@ -1507,7 +1520,7 @@ CAMERA STYLE: [Explain how the camera behaves. Always specify "one continuous ha
 NEGATIVE_PROMPT: [List what should NOT appear: no text, no captions, no blood, no horror tone, no underwater POV, no jump cuts, etc.]
 
 IMPORTANT: Follow this template exactly. Each section header must be in CAPS followed by a colon. All content should comply with Veo 3's latest guidelines (no violence, no horror, one continuous shot, etc.).`
-        }
+        } // End of skipOldTemplate2 block
         
         // Insert the detailed prompt at the beginning
         parts.unshift(detailedVideoPrompt)
