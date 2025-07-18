@@ -548,6 +548,67 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Handle deep research with Perplexity when deepResearch tool is selected
+    if (selectedTool === "deepResearch" && message) {
+      try {
+        console.log("Deep research requested with query:", message)
+        
+        // Extract the actual query (remove the tool prefix if present)
+        let researchQuery = message
+        if (message.startsWith("Please do deep research on: ")) {
+          researchQuery = message.replace("Please do deep research on: ", "")
+        }
+        
+        // Always stream for deep research due to long processing times
+        const deepResearchResponse = await fetch(new URL("/api/deep-research", request.url).toString(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream", // Request streaming response
+          },
+          body: JSON.stringify({
+            query: researchQuery,
+            reasoning_effort: 'medium', // Can be made configurable later
+            stream: true
+          }),
+        })
+        
+        if (!deepResearchResponse.ok) {
+          const errorData = await deepResearchResponse.json()
+          throw new Error(errorData.error || "Failed to initiate deep research")
+        }
+        
+        // Deep research API returns a stream, pipe it through
+        return new Response(deepResearchResponse.body, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        })
+      } catch (error) {
+        console.error("Deep research error:", error)
+        const errorMessage = error instanceof Error ? error.message : "Failed to perform deep research"
+        
+        // Return error as stream
+        const stream = new ReadableStream({
+          start(controller) {
+            const encoder = new TextEncoder()
+            const event = `data: ${JSON.stringify({ type: 'error', error: errorMessage })}\n\n`
+            controller.enqueue(encoder.encode(event))
+            controller.close()
+          }
+        })
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        })
+      }
+    }
+
     // Set up model name - trying different models based on availability
     let modelName = "gemini-2.0-flash";
     // In the new SDK, we'll try models during actual API calls

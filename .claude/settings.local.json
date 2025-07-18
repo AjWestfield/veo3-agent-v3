@@ -47,7 +47,8 @@
       "Bash(npx:*)",
       "Bash(timeout 10s npm run dev:*)",
       "Bash(find:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "WebFetch(domain:ai-sdk.dev)"
     ],
     "deny": []
   }

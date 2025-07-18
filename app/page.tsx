@@ -31,6 +31,12 @@ export interface Message {
   content: string
   timestamp: Date
   isStreaming?: boolean
+  downloadProgress?: {
+    url: string
+    platform: string
+    isComplete: boolean
+    error?: string
+  }
   files?: FileWithPreview[]
   searchData?: {
     citations?: string[]
@@ -444,12 +450,18 @@ export default function ChatPage() {
       // Use setTimeout to avoid immediate state updates that could cause loops
       setTimeout(async () => {
         try {
-          // Show downloading message
+          // Show downloading message with progress metadata
+          const platform = videoUrls.length > 0 ? getPlatformFromUrl(videoUrls[0]) : 'video'
           const downloadingMessage: Message = {
             role: "assistant",
             content: `Downloading ${videoUrls.length} video${videoUrls.length > 1 ? 's' : ''} from URL${videoUrls.length > 1 ? 's' : ''}...`,
             timestamp: new Date(),
-            isStreaming: true
+            isStreaming: true,
+            downloadProgress: {
+              url: videoUrls[0] || '',
+              platform: platform,
+              isComplete: false
+            }
           }
           
           setMessages(prev => [...prev, downloadingMessage])
@@ -498,8 +510,25 @@ export default function ChatPage() {
           
           // Update state only once at the end
           setMessages(prev => {
-            // Remove the downloading message and add result message
-            const newMessages = prev.slice(0, -1)
+            // Update the downloading message to show completion
+            const newMessages = [...prev]
+            const lastMessage = newMessages[newMessages.length - 1]
+            if (lastMessage && lastMessage.downloadProgress) {
+              lastMessage.downloadProgress.isComplete = true
+              lastMessage.isStreaming = false
+            }
+            
+            // Wait a bit before showing the success message to let the completion animation play
+            setTimeout(() => {
+              setMessages(prev => {
+                const msgs = [...prev]
+                // Remove the download progress message
+                if (msgs[msgs.length - 1]?.downloadProgress) {
+                  msgs.pop()
+                }
+                return msgs
+              })
+            }, 2000)
             
             if (downloadedVideos.length > 0) {
               // Add success message
@@ -509,12 +538,26 @@ export default function ChatPage() {
                 timestamp: new Date()
               })
             } else if (videoUrls.length > 0) {
-              // Add error message
-              newMessages.push({
-                role: "assistant",
-                content: `Failed to download video${videoUrls.length > 1 ? 's' : ''} from the provided URL${videoUrls.length > 1 ? 's' : ''}. Please check if the video${videoUrls.length > 1 ? 's are' : ' is'} accessible and try again.`,
-                timestamp: new Date()
-              })
+              // Update download message to show error
+              if (lastMessage && lastMessage.downloadProgress) {
+                lastMessage.downloadProgress.error = `Failed to download video${videoUrls.length > 1 ? 's' : ''}. Please check if the video${videoUrls.length > 1 ? 's are' : ' is'} accessible and try again.`
+                lastMessage.isStreaming = false
+              }
+              // Add error message after delay
+              setTimeout(() => {
+                setMessages(prev => {
+                  const msgs = [...prev]
+                  if (msgs[msgs.length - 1]?.downloadProgress) {
+                    msgs.pop()
+                  }
+                  msgs.push({
+                    role: "assistant",
+                    content: `Failed to download video${videoUrls.length > 1 ? 's' : ''} from the provided URL${videoUrls.length > 1 ? 's' : ''}. Please check if the video${videoUrls.length > 1 ? 's are' : ' is'} accessible and try again.`,
+                    timestamp: new Date()
+                  })
+                  return msgs
+                })
+              }, 2000)
             }
             
             return newMessages
@@ -669,12 +712,18 @@ export default function ChatPage() {
     if (videoUrls.length > 0 && !isDownloadingVideo && filesWithPreviews.length === 0) {
       setIsDownloadingVideo(true)
       
-      // Show downloading message
+      // Show downloading message with progress metadata
+      const platform = videoUrls.length > 0 ? getPlatformFromUrl(videoUrls[0]) : 'video'
       const downloadingMessage: Message = {
         role: "assistant",
         content: `Downloading ${videoUrls.length} video${videoUrls.length > 1 ? 's' : ''} from URL${videoUrls.length > 1 ? 's' : ''}...`,
         timestamp: new Date(),
-        isStreaming: true
+        isStreaming: true,
+        downloadProgress: {
+          url: videoUrls[0] || '',
+          platform: platform,
+          isComplete: false
+        }
       }
       setMessages(prev => [...prev, downloadingMessage])
       
@@ -690,9 +739,33 @@ export default function ChatPage() {
         }
       }
       
-      // Remove downloading message
-      setMessages(prev => prev.slice(0, -1))
+      // Update downloading message to show completion
+      setMessages(prev => {
+        const newMessages = [...prev]
+        const lastMessage = newMessages[newMessages.length - 1]
+        if (lastMessage && lastMessage.downloadProgress) {
+          if (downloadedVideos.length > 0) {
+            lastMessage.downloadProgress.isComplete = true
+          } else {
+            lastMessage.downloadProgress.error = 'Download failed. Please check the URL and try again.'
+          }
+          lastMessage.isStreaming = false
+        }
+        return newMessages
+      })
+      
       setIsDownloadingVideo(false)
+      
+      // Wait for completion animation then remove the progress message
+      setTimeout(() => {
+        setMessages(prev => {
+          const msgs = [...prev]
+          if (msgs[msgs.length - 1]?.downloadProgress) {
+            msgs.pop()
+          }
+          return msgs
+        })
+      }, 2000)
       
       if (downloadedVideos.length > 0) {
         // Add downloaded videos to files
@@ -2097,6 +2170,7 @@ Tips:
                       isStreaming={msg.isStreaming}
                       searchData={msg.searchData}
                       searchProgress={msg.searchProgress}
+                      downloadProgress={msg.downloadProgress}
                       onImageClick={(url, alt) => {
                         // Check if this is an edited image
                         const editedImageData = editedImages.get(url)

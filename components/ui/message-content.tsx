@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from "react"
 import { WebSearchResults } from "@/components/web-search-results"
+import { VideoDownloadProgress } from "@/components/ui/video-download-progress"
 
 interface MessageContentProps {
   content: string
@@ -23,6 +24,12 @@ interface MessageContentProps {
     stage: "searching" | "analyzing" | "formatting"
     message: string
   }
+  downloadProgress?: {
+    url: string
+    platform: string
+    isComplete: boolean
+    error?: string
+  }
 }
 
 interface ClipData {
@@ -32,13 +39,18 @@ interface ClipData {
   content: string
 }
 
-export function MessageContent({ content, isStreaming, onImageClick, onEditImage, onAnimateImage, onFilePathClick, onRelatedQuestionClick, onGenerateVideo, isGeneratingVideo, searchData, searchProgress }: MessageContentProps) {
+export function MessageContent({ content, isStreaming, onImageClick, onEditImage, onAnimateImage, onFilePathClick, onRelatedQuestionClick, onGenerateVideo, isGeneratingVideo, searchData, searchProgress, downloadProgress }: MessageContentProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [generatingIndex, setGeneratingIndex] = useState<number | null>(null)
   const [generatedIndex, setGeneratedIndex] = useState<number | null>(null)
 
   // Check if this is a web search result
   const isWebSearchResult = content.includes("### Sources:") || content.includes("### Related Images:") || searchData || searchProgress
+  
+  // Check if this is a video download message
+  const isVideoDownload = downloadProgress && content.match(/Downloading \d+ video.*from URL/i)
+  const videoDownloadMatch = content.match(/Downloading (\d+) video.*from URL/i)
+  const videoCount = videoDownloadMatch ? parseInt(videoDownloadMatch[1]) : 1
 
   // Check if this is a multi-clip or single VEO 3 prompt
   const isMultiClipVEO3 = content.includes("VEO 3 MULTI-CLIP ANALYSIS:") || content.includes("VEO 3 AUTO-DETECTED CLIPS ANALYSIS:")
@@ -409,6 +421,19 @@ export function MessageContent({ content, isStreaming, onImageClick, onEditImage
     )
   }
 
+  // Special handling for video download progress
+  if (isVideoDownload && downloadProgress) {
+    return (
+      <VideoDownloadProgress 
+        url={downloadProgress.url}
+        platform={downloadProgress.platform}
+        isComplete={downloadProgress.isComplete}
+        error={downloadProgress.error}
+        videoCount={videoCount}
+      />
+    )
+  }
+  
   return (
     <div className="relative">
       {isSingleVEO3Prompt && !isStreaming && (
