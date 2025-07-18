@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenAI } from "@google/genai"
 import { NextResponse } from "next/server"
 
 export async function GET() {
@@ -10,21 +10,44 @@ export async function GET() {
     }
     
     // Test API key validity
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
+    const ai = new GoogleGenAI({ apiKey })
+    let modelName = "gemini-2.0-flash"
     
     // Simple test prompt
-    const result = await model.generateContent("Say 'API is working' in 5 words or less")
-    const response = await result.response
-    const text = response.text()
-    
-    return NextResponse.json({ 
-      status: "success",
-      apiKeyPresent: true,
-      apiKeyLength: apiKey.length,
-      testResponse: text,
-      model: "gemini-2.0-flash-exp"
-    })
+    try {
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: "Say 'API is working' in 5 words or less"
+      })
+      const text = response.text
+      
+      return NextResponse.json({ 
+        status: "success",
+        apiKeyPresent: true,
+        apiKeyLength: apiKey.length,
+        testResponse: text,
+        model: modelName
+      })
+    } catch (modelError: any) {
+      // Try fallback model if primary fails
+      if (modelName === "gemini-2.0-flash") {
+        modelName = "gemini-1.5-flash"
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: "Say 'API is working' in 5 words or less"
+        })
+        const text = response.text
+        
+        return NextResponse.json({ 
+          status: "success",
+          apiKeyPresent: true,
+          apiKeyLength: apiKey.length,
+          testResponse: text,
+          model: modelName
+        })
+      }
+      throw modelError
+    }
     
   } catch (error) {
     console.error("Test API Error:", error)

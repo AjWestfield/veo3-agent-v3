@@ -1,6 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenAI } from "@google/genai"
 import { NextRequest, NextResponse } from "next/server"
-import { GoogleAIFileManager } from "@google/generative-ai/server"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
@@ -13,8 +12,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // Use Node.js runtime for large uploads
 
 // Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
-const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY || "")
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" })
 
 export async function POST(request: NextRequest) {
   console.log("=== NEW REQUEST RECEIVED ===")
@@ -195,6 +193,228 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Handle video generation when generateVideo tool is selected
+    if (selectedTool === "generateVideo" && message) {
+      try {
+        console.log("Video generation requested with prompt:", message)
+        
+        // Extract the actual prompt (remove the tool prefix if present)
+        let videoPrompt = message
+        if (message.startsWith("Please generate a video showing: ")) {
+          videoPrompt = message.replace("Please generate a video showing: ", "")
+        }
+        
+        // Get video generation settings from request
+        const videoGenerationSettingsStr = formData.get("videoGenerationSettings") as string | null
+        let videoGenerationSettings = videoGenerationSettingsStr ? JSON.parse(videoGenerationSettingsStr) : null
+        
+        // Auto-correct model selection if needed
+        if (videoGenerationSettings?.model === "kling-2.1") {
+          // Check if we have any uploaded images in the files
+          const formDataFiles = formData.getAll("files")
+          const hasImages = formDataFiles.length > 0
+          
+          if (!hasImages) {
+            console.log(`🔄 Chat API: Switching from Kling 2.1 to VEO 3 Fast for text-to-video generation`)
+            videoGenerationSettings = {
+              ...videoGenerationSettings,
+              model: "veo-3-fast",
+              originalModel: "kling-2.1" // Track the original selection
+            }
+          }
+        }
+        
+        // Use streaming video generation for better UX
+        const videoResponse = await fetch(new URL("/api/generate-video/stream", request.url).toString(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt: videoPrompt,
+            model: videoGenerationSettings?.model || 'kling-2.1',
+            duration: videoGenerationSettings?.duration || 5,
+            quality: videoGenerationSettings?.quality || 'standard',
+            aspectRatio: videoGenerationSettings?.aspectRatio || '16:9',
+            enhancePrompt: videoGenerationSettings?.enhancePrompt !== false,
+            // Note: startImage would need to be handled separately for image-to-video
+          }),
+        })
+        
+        // Video generation now returns a streaming response
+        if (!videoResponse.ok) {
+          // For non-ok responses, we can still try to parse as JSON
+          try {
+            const errorData = await videoResponse.json()
+            console.error("Video generation failed:", errorData)
+            
+            // Return error message
+            const stream = new ReadableStream({
+              start(controller) {
+                const encoder = new TextEncoder()
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: "message",
+                  content: `❌ Video generation failed: ${errorData.error || "Unknown error"}`,
+                  done: false
+                })}\n\n`))
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: "done",
+                  content: "",
+                  done: true
+                })}\n\n`))
+                controller.close()
+              }
+            })
+            
+            return new Response(stream, {
+              headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+              },
+            })
+          } catch (parseError) {
+            // If we can't parse the error, return a generic error
+            console.error("Failed to parse error response:", parseError)
+          }
+        }
+        
+        // For successful responses, we're now getting a stream
+        // We need to pipe this stream through and add our own handling
+        const reader = videoResponse.body!.getReader()
+        const decoder = new TextDecoder()
+        
+        const stream = new ReadableStream({
+          async start(controller) {
+            const encoder = new TextEncoder()
+            let videoDetails: any = null
+            
+            while (true) {
+              const { done, value } = await reader.read()
+              
+              if (done) break
+              
+              const chunk = decoder.decode(value)
+              const lines = chunk.split('\n')
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6)
+                  if (data) {
+                    try {
+                      const parsed = JSON.parse(data)
+                      
+                      if (parsed.type === 'progress') {
+                        // Forward progress updates
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                          type: "progress",
+                          message: parsed.message,
+                          progress: parsed.progress
+                        })}\n\n`))
+                      } else if (parsed.type === 'video') {
+                        // Store video details for final message
+                        videoDetails = parsed.videoDetails
+                        
+                        // Send the video message
+                        let videoMessage = `I've generated a video for you:\n\n**Video Details:**\n- Model: ${videoDetails.model}\n- Duration: ${videoDetails.duration}s\n- Quality: ${videoDetails.quality}\n- Aspect Ratio: ${videoDetails.aspectRatio}\n\n`;
+                        
+                        // Add note about model switch if it happened
+                        if (videoDetails.originalModel && videoDetails.originalModel !== videoDetails.model) {
+                          videoMessage += `*Note: Automatically switched from ${videoDetails.originalModel} to ${videoDetails.model} for text-to-video generation.*\n\n`;
+                        }
+                        
+                        videoMessage += `[Watch Video](${parsed.videoUrl})\n\n`;
+                        
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                          type: "message",
+                          content: videoMessage,
+                          done: false
+                        })}\n\n`))
+                        
+                        // Send video details for sidebar tracking
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                          type: "video",
+                          videoUrl: parsed.videoUrl,
+                          videoDetails: videoDetails
+                        })}\n\n`))
+                      } else if (parsed.type === 'error') {
+                        // Forward error messages
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                          type: "message",
+                          content: parsed.message,
+                          done: false
+                        })}\n\n`))
+                      } else if (parsed.type === 'done') {
+                        // Forward done signal
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                          type: "done",
+                          content: "",
+                          done: true
+                        })}\n\n`))
+                      }
+                    } catch (parseError) {
+                      console.error("Error parsing streaming data:", parseError)
+                    }
+                  }
+                }
+              }
+            }
+            
+            controller.close()
+          }
+        })
+        
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+          },
+        })
+      } catch (error) {
+        console.error("Error generating video:", error)
+        const errorMessage = error instanceof Error ? error.message : "Failed to generate video"
+        
+        // Check if streaming is requested
+        const acceptHeader = request.headers.get("accept")
+        const wantsStream = acceptHeader?.includes("text/event-stream")
+        
+        if (wantsStream) {
+          const stream = new ReadableStream({
+            start(controller) {
+              const encoder = new TextEncoder()
+              
+              // Send error message
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                type: "error",
+                content: `I encountered an error while generating the video: ${errorMessage}`,
+                done: false
+              })}\n\n`))
+              
+              // Send done signal
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                type: "done",
+                content: "",
+                done: true
+              })}\n\n`))
+              
+              controller.close()
+            },
+          })
+          
+          return new Response(stream, {
+            headers: {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              "Connection": "keep-alive",
+            },
+          })
+        } else {
+          return NextResponse.json({ error: errorMessage }, { status: 500 })
+        }
+      }
+    }
+
     // Handle web search with Perplexity when searchWeb tool is selected
     if (selectedTool === "searchWeb" && message) {
       try {
@@ -327,28 +547,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Initialize the model - trying different models based on availability
-    let model;
-    let modelName = "gemini-2.0-flash-exp";
-    try {
-      model = genAI.getGenerativeModel({ model: modelName })
-      console.log(`Successfully initialized model: ${modelName}`)
-    } catch (modelError) {
-      console.error(`Failed to initialize ${modelName}:`, modelError)
-      // Try fallback to stable model
-      try {
-        modelName = "gemini-1.5-flash";
-        console.log(`Trying fallback model: ${modelName}`)
-        model = genAI.getGenerativeModel({ model: modelName })
-        console.log(`Successfully initialized fallback model: ${modelName}`)
-      } catch (fallbackError) {
-        console.error(`Failed to initialize fallback model:`, fallbackError)
-        return NextResponse.json(
-          { error: "Failed to initialize AI model. Please check API configuration." },
-          { status: 500 }
-        )
-      }
-    }
+    // Set up model name - trying different models based on availability
+    let modelName = "gemini-2.0-flash";
+    // In the new SDK, we'll try models during actual API calls
 
     // Check if streaming is requested
     const acceptHeader = request.headers.get("accept")
@@ -481,14 +682,17 @@ If no public figures are present, proceed with regular analysis.` })
                   })
                   
                   // Upload the file using the file path
-                  const uploadResult = await fileManager.uploadFile(tempFilePath, {
-                    mimeType: file.type,
-                    displayName: file.name
+                  const uploadResult = await ai.files.upload({
+                    file: tempFilePath,
+                    config: {
+                      mimeType: file.type,
+                      displayName: file.name
+                    }
                   })
                   
                   const uploadDuration = Date.now() - uploadStartTime
                   console.log(`Video uploaded to Files API in ${uploadDuration}ms`)
-                  console.log("File URI:", uploadResult.file.uri)
+                  console.log("File URI:", uploadResult.uri)
                   
                   // Send upload complete event
                   sendEvent({ 
@@ -499,7 +703,7 @@ If no public figures are present, proceed with regular analysis.` })
                   })
                   
                   // Wait for the file to be processed
-                  let fileData = uploadResult.file
+                  let fileData = uploadResult
                   let waitTime = 0
                   let consecutiveErrors = 0
                   const maxWaitTime = 300000 // 5 minutes max wait
@@ -520,7 +724,7 @@ If no public figures are present, proceed with regular analysis.` })
                     waitTime += 2000
                     
                     try {
-                      const fileResponse = await fileManager.getFile(fileData.name)
+                      const fileResponse = await ai.files.get({ name: fileData.name })
                       fileData = fileResponse
                       consecutiveErrors = 0 // Reset error count on success
                     } catch (pollError) {
@@ -532,9 +736,9 @@ If no public figures are present, proceed with regular analysis.` })
                         console.error(`Failed to poll file status after ${consecutiveErrors} attempts`)
                         
                         // Try to use the file anyway if it was uploaded
-                        if (uploadResult.file.uri) {
+                        if (uploadResult.uri) {
                           console.log("Attempting to use file despite processing errors...")
-                          fileData = uploadResult.file
+                          fileData = uploadResult
                           // Proceed with the file even if processing status is unclear
                           break
                         } else {
@@ -772,9 +976,12 @@ IMPORTANT: Follow this template exactly. Each section header must be in CAPS fol
             
             let result;
             try {
-              result = await model.generateContentStream(parts)
-            } catch (streamError) {
-              console.error("Failed to start streaming:", streamError)
+              result = await ai.models.generateContentStream({
+                model: modelName,
+                contents: parts
+              })
+            } catch (streamError: any) {
+              console.error(`Failed to start streaming with ${modelName}:`, streamError)
               console.error("Stream error details:", {
                 name: streamError?.name,
                 message: streamError?.message,
@@ -782,31 +989,150 @@ IMPORTANT: Follow this template exactly. Each section header must be in CAPS fol
                 response: streamError?.response,
                 status: streamError?.status
               })
-              throw new Error(`Failed to start Gemini streaming: ${streamError instanceof Error ? streamError.message : 'Unknown error'}`)
+              
+              // Try fallback model if primary fails
+              if (modelName === "gemini-2.0-flash") {
+                console.log("Trying fallback model: gemini-1.5-flash")
+                modelName = "gemini-1.5-flash"
+                try {
+                  result = await ai.models.generateContentStream({
+                    model: modelName,
+                    contents: parts
+                  })
+                } catch (fallbackError: any) {
+                  console.error("Fallback model also failed:", fallbackError)
+                  throw new Error(`Failed to start Gemini streaming with both models: ${streamError instanceof Error ? streamError.message : 'Unknown error'}`)
+                }
+              } else {
+                throw new Error(`Failed to start Gemini streaming: ${streamError instanceof Error ? streamError.message : 'Unknown error'}`)
+              }
             }
             
-            // Stream the response chunks
+            // Stream the response chunks with improved error handling
             try {
               let chunkCount = 0
-              for await (const chunk of result.stream) {
+              let failedChunks = 0
+              let lastSuccessfulChunk = ""
+              const streamStartTime = Date.now()
+              const maxStreamDuration = 5 * 60 * 1000 // 5 minutes timeout
+              
+              for await (const chunk of result) {
+                // Check for timeout
+                if (Date.now() - streamStartTime > maxStreamDuration) {
+                  console.warn("Stream timeout reached after 5 minutes")
+                  break
+                }
                 chunkCount++
-                const chunkText = chunk.text()
-                if (chunkText) {
-                  // Send as Server-Sent Event format with content type
-                  const data = `data: ${JSON.stringify({ type: 'content', text: chunkText })}\n\n`
-                  controller.enqueue(encoder.encode(data))
+                
+                try {
+                  // Validate chunk before processing
+                  if (!chunk) {
+                    console.warn(`Chunk ${chunkCount}: Empty chunk received, skipping`)
+                    continue
+                  }
+                  
+                  // Safely extract text with error handling
+                  let chunkText = ""
+                  
+                  // First, log the chunk structure for debugging
+                  if (chunkCount === 1) {
+                    console.log(`Chunk structure (first chunk):`, {
+                      hasText: typeof chunk.text === 'function',
+                      hasCandidates: !!chunk.candidates,
+                      chunkKeys: Object.keys(chunk || {}),
+                      chunkType: typeof chunk
+                    })
+                  }
+                  
+                  try {
+                    // Check if text() method exists before calling it
+                    if (typeof chunk.text === 'function') {
+                      chunkText = chunk.text()
+                    } else if (chunk.candidates?.[0]?.content?.parts?.[0]?.text) {
+                      // Direct access to text content
+                      chunkText = chunk.candidates[0].content.parts[0].text
+                    } else if (chunk.text && typeof chunk.text === 'string') {
+                      // Sometimes the text might be a direct property
+                      chunkText = chunk.text
+                    } else if (chunk.parts?.[0]?.text) {
+                      // Another possible structure
+                      chunkText = chunk.parts[0].text
+                    } else {
+                      // Log the entire chunk structure for debugging unknown formats
+                      console.warn(`Chunk ${chunkCount}: Unknown chunk structure:`, JSON.stringify(chunk, null, 2).slice(0, 500))
+                      failedChunks++
+                      continue
+                    }
+                  } catch (textError) {
+                    console.warn(`Chunk ${chunkCount}: Error extracting text:`, textError)
+                    failedChunks++
+                    continue
+                  }
+                  
+                  if (chunkText && chunkText.trim()) {
+                    lastSuccessfulChunk = chunkText
+                    // Send as Server-Sent Event format with content type
+                    const data = `data: ${JSON.stringify({ type: 'content', text: chunkText })}\n\n`
+                    controller.enqueue(encoder.encode(data))
+                  } else {
+                    console.log(`Chunk ${chunkCount}: Empty text content, skipping`)
+                  }
+                  
+                } catch (chunkProcessError) {
+                  failedChunks++
+                  console.warn(`Chunk ${chunkCount}: Error processing chunk:`, {
+                    error: chunkProcessError,
+                    message: chunkProcessError instanceof Error ? chunkProcessError.message : 'Unknown error',
+                    chunkType: typeof chunk,
+                    chunkKeys: chunk ? Object.keys(chunk) : 'null chunk'
+                  })
+                  
+                  // Continue processing other chunks instead of failing completely
+                  continue
                 }
               }
-              console.log(`Successfully streamed ${chunkCount} chunks`)
+              
+              console.log(`Streaming completed: ${chunkCount} total chunks, ${failedChunks} failed chunks`)
+              
+              // If all chunks failed but we had a successful start, that's still partial success
+              if (chunkCount > 0 && failedChunks < chunkCount) {
+                console.log("Stream completed successfully with some recoverable errors")
+              } else if (chunkCount === 0) {
+                console.warn("No chunks received from Gemini API")
+                // Send a fallback message
+                const fallbackData = `data: ${JSON.stringify({ 
+                  type: 'content', 
+                  text: 'The video analysis was initiated but no response was received. Please try again.' 
+                })}\n\n`
+                controller.enqueue(encoder.encode(fallbackData))
+              } else if (failedChunks === chunkCount) {
+                throw new Error(`All ${chunkCount} chunks failed to process. Last error details logged above.`)
+              }
+              
             } catch (chunkError) {
-              console.error("Error while streaming chunks:", chunkError)
+              console.error("Critical error while streaming chunks:", chunkError)
               console.error("Chunk error details:", {
                 name: chunkError?.name,
                 message: chunkError?.message,
                 stack: chunkError?.stack,
                 toString: chunkError?.toString?.()
               })
-              throw new Error(`Failed to parse stream: ${chunkError instanceof Error ? chunkError.message : 'Unknown error'}`)
+              
+              // Provide more specific error messages
+              let errorMessage = "Failed to process Gemini response stream"
+              if (chunkError instanceof Error) {
+                if (chunkError.message.includes("quota")) {
+                  errorMessage = "Gemini API quota exceeded during streaming"
+                } else if (chunkError.message.includes("network") || chunkError.message.includes("timeout")) {
+                  errorMessage = "Network error during streaming - please try again"
+                } else if (chunkError.message.includes("All") && chunkError.message.includes("chunks failed")) {
+                  errorMessage = "Failed to parse any response chunks - the API may be experiencing issues"
+                } else {
+                  errorMessage = `Streaming error: ${chunkError.message}`
+                }
+              }
+              
+              throw new Error(errorMessage)
             }
             
             // Send completion signal
@@ -936,16 +1262,19 @@ If no public figures are present, proceed with regular analysis.` })
             const uploadStartTime = Date.now()
             
             // Upload the file using the file path
-            const uploadResult = await fileManager.uploadFile(tempFilePath, {
-              mimeType: file.type,
-              displayName: file.name
+            const uploadResult = await ai.files.upload({
+              file: tempFilePath,
+              config: {
+                mimeType: file.type,
+                displayName: file.name
+              }
             })
             
             console.log(`Video uploaded to Files API in ${Date.now() - uploadStartTime}ms`)
-            console.log("File URI:", uploadResult.file.uri)
+            console.log("File URI:", uploadResult.uri)
             
             // Wait for the file to be processed
-            let fileData = uploadResult.file
+            let fileData = uploadResult
             let waitTime = 0
             let consecutiveErrors = 0
             const maxWaitTime = 300000 // 5 minutes max wait
@@ -957,7 +1286,7 @@ If no public figures are present, proceed with regular analysis.` })
               waitTime += 2000
               
               try {
-                const fileResponse = await fileManager.getFile(fileData.name)
+                const fileResponse = await ai.files.get({ name: fileData.name })
                 fileData = fileResponse
                 consecutiveErrors = 0 // Reset error count on success
               } catch (pollError) {
@@ -969,9 +1298,9 @@ If no public figures are present, proceed with regular analysis.` })
                   console.error(`Failed to poll file status after ${consecutiveErrors} attempts`)
                   
                   // Try to use the file anyway if it was uploaded
-                  if (uploadResult.file.uri) {
+                  if (uploadResult.uri) {
                     console.log("Attempting to use file despite processing errors...")
-                    fileData = uploadResult.file
+                    fileData = uploadResult
                     // Proceed with the file even if processing status is unclear
                     break
                   } else {
@@ -1185,15 +1514,17 @@ IMPORTANT: Follow this template exactly. Each section header must be in CAPS fol
       }
       
       console.log("Generating content with Gemini...")
-      const result = await model.generateContent(parts)
-      const response = result.response
-      const text = response.text()
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: parts
+      })
+      const text = response.text
 
       console.log("Generation complete, response length:", text.length)
 
       return NextResponse.json({ 
         response: text,
-        model: "gemini-2.0-flash-exp"
+        model: modelName
       })
     }
 

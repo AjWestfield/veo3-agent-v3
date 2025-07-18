@@ -1,8 +1,8 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenAI } from "@google/genai"
 import { NextRequest, NextResponse } from "next/server"
 
 // Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" })
 
 export async function POST(request: NextRequest) {
   console.log("=== ENHANCE PROMPT REQUEST ===")
@@ -25,28 +25,8 @@ export async function POST(request: NextRequest) {
     }
     console.log("API Key configured:", apiKey ? `Yes (${apiKey.substring(0, 10)}...)` : "No")
 
-    // Initialize the model - trying different models based on availability
-    let model;
-    let modelName = "gemini-2.0-flash-exp";
-    try {
-      model = genAI.getGenerativeModel({ model: modelName })
-      console.log(`Successfully initialized model: ${modelName}`)
-    } catch (modelError) {
-      console.error(`Failed to initialize ${modelName}:`, modelError)
-      // Try fallback to stable model
-      try {
-        modelName = "gemini-1.5-flash";
-        console.log(`Trying fallback model: ${modelName}`)
-        model = genAI.getGenerativeModel({ model: modelName })
-        console.log(`Successfully initialized fallback model: ${modelName}`)
-      } catch (fallbackError) {
-        console.error(`Failed to initialize fallback model:`, fallbackError)
-        return NextResponse.json(
-          { error: "Failed to initialize AI model. Please check API configuration." },
-          { status: 500 }
-        )
-      }
-    }
+    // Set model name - will try different models if one fails
+    let modelName = "gemini-2.0-flash";
 
     // Create context from chat history (last 5 messages for relevance)
     const recentHistory = chatHistory.slice(-5)
@@ -67,17 +47,38 @@ Enhanced version:`
     
     let enhancedPrompt;
     try {
-      const result = await model.generateContent(systemPrompt)
-      const response = await result.response
-      enhancedPrompt = response.text().trim()
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: systemPrompt
+      })
+      enhancedPrompt = response.text.trim()
       
       console.log("Enhanced prompt generated:", enhancedPrompt)
-    } catch (apiError) {
+    } catch (apiError: any) {
       console.error("Gemini API call failed:", apiError)
       
-      // Fallback: simple enhancement without AI
-      enhancedPrompt = prompt + " Please provide detailed information and specific examples."
-      console.log("Using fallback enhancement")
+      // Try fallback model if primary fails
+      if (modelName === "gemini-2.0-flash") {
+        console.log("Trying fallback model: gemini-1.5-flash")
+        modelName = "gemini-1.5-flash"
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: systemPrompt
+          })
+          enhancedPrompt = response.text.trim()
+          console.log("Enhanced prompt generated with fallback model:", enhancedPrompt)
+        } catch (fallbackError) {
+          console.error("Fallback model also failed:", fallbackError)
+          // Fallback: simple enhancement without AI
+          enhancedPrompt = prompt + " Please provide detailed information and specific examples."
+          console.log("Using fallback enhancement")
+        }
+      } else {
+        // Fallback: simple enhancement without AI
+        enhancedPrompt = prompt + " Please provide detailed information and specific examples."
+        console.log("Using fallback enhancement")
+      }
     }
 
     return NextResponse.json({

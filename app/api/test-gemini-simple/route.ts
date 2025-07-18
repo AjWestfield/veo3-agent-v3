@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenAI } from "@google/genai"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest) {
@@ -11,21 +11,23 @@ export async function GET(request: NextRequest) {
     console.log("Testing Gemini API...")
     console.log("API Key:", apiKey.substring(0, 10) + "...")
 
-    const genAI = new GoogleGenerativeAI(apiKey)
+    const ai = new GoogleGenAI({ apiKey })
     
-    // Try different models
-    const models = ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-pro"]
+    // Try different models - updated to new model names
+    const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
     const results: any[] = []
 
     for (const modelName of models) {
       try {
         console.log(`Testing model: ${modelName}`)
-        const model = genAI.getGenerativeModel({ model: modelName })
         
-        // Simple text-only test
-        const result = await model.generateContent("Say 'Hello, I am working!'")
-        const response = result.response
-        const text = response.text()
+        // Simple text-only test with new API
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: "Say 'Hello, I am working!'"
+        })
+        
+        const text = response.text
         
         results.push({
           model: modelName,
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
           message: "Model is working"
         })
         console.log(`✓ ${modelName} works:`, text)
-      } catch (error) {
+      } catch (error: any) {
         console.error(`✗ ${modelName} failed:`, error)
         results.push({
           model: modelName,
@@ -53,12 +55,14 @@ export async function GET(request: NextRequest) {
     // Test streaming
     console.log("\nTesting streaming...")
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
-      const result = await model.generateContentStream("Count from 1 to 5")
+      const response = await ai.models.generateContentStream({
+        model: "gemini-1.5-flash",
+        contents: "Count from 1 to 5"
+      })
       
       let streamedText = ""
-      for await (const chunk of result.stream) {
-        streamedText += chunk.text()
+      for await (const chunk of response) {
+        streamedText += chunk.text
       }
       
       results.push({
@@ -68,7 +72,7 @@ export async function GET(request: NextRequest) {
         message: "Streaming is working"
       })
       console.log("✓ Streaming works:", streamedText)
-    } catch (error) {
+    } catch (error: any) {
       console.error("✗ Streaming failed:", error)
       results.push({
         test: "streaming",

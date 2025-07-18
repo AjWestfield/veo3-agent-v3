@@ -39,7 +39,15 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:unpkg.com)",
       "Bash(pgrep:*)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(touch:*)",
+      "Bash(./node_modules/yt-dlp-exec/bin/yt-dlp:*)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(yt-dlp:*)",
+      "Bash(npx:*)",
+      "Bash(timeout 10s npm run dev:*)",
+      "Bash(find:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }

@@ -92,3 +92,324 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom scrollbar styles for sidebar */
+.sidebar-scrollbar {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: #666666 #2f2f2f;
+  /* Ensure scrolling works on all devices */
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  background: #2f2f2f;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: #252525;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: #5a5a5a;
+  border-radius: 4px;
+  border: 1px solid #3a3a3a;
+  min-height: 30px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #777777;
+  border-color: #555555;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:active {
+  background: #888888;
+}
+
+/* Always show scrollbar track for better visibility */
+.sidebar-scrollbar::-webkit-scrollbar-track-piece {
+  background: #2a2a2a;
+}
+
+/* Ensure smooth scrolling */
+.sidebar-scrollbar {
+  scroll-behavior: smooth;
+  /* Add padding to prevent content from touching scrollbar */
+  padding-right: 4px;
+}
+
+/* Make scrollbar more prominent when sidebar is expanded */
+.sidebar[data-collapsed="false"] .sidebar-scrollbar::-webkit-scrollbar {
+  width: 12px;
+}
+
+.sidebar[data-collapsed="false"] .sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: #6a6a6a;
+}
+
+
+/* Ensure sidebar has proper height constraints */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar > div {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Ensure smooth scrolling behavior */
+.sidebar-scrollbar {
+  scroll-behavior: smooth;
+  /* Add padding to prevent content from touching scrollbar */
+  padding-right: 4px;
+  /* Enable momentum scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  /* Prevent scroll chaining */
+  overscroll-behavior: contain;
+}
+
+
+/* Force scrollbar to be visible when content overflows and sidebar is expanded */
+.sidebar[data-collapsed="false"] .sidebar-scrollbar {
+  overflow-y: auto !important;
+}
+
+/* Hide overflow when sidebar is collapsed */
+.sidebar[data-collapsed="true"] .sidebar-scrollbar {
+  overflow: hidden !important;
+}
+
+/* Ensure scrollbar track is always visible for webkit browsers */
+.sidebar-scrollbar::-webkit-scrollbar {
+  display: block !important;
+}
+
+
+/* Ensure scrollable area receives pointer events and has proper dimensions */
+.sidebar-scrollbar {
+  position: relative;
+  width: 100%;
+  pointer-events: auto;
+}
+
+/* Make sure content can scroll */
+.sidebar-scrollbar > div {
+  position: relative;
+  width: 100%;
+}
+
+/* Improve scrollbar visibility on macOS */
+.sidebar-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: #7a7a7a;
+}
+
+/* Ensure scrollbar is interactive */
+.sidebar-scrollbar::-webkit-scrollbar-thumb:active {
+  background: #9a9a9a;
+}
+
+/* MacBook and touch device scrolling fixes */
+.sidebar {
+  /* Reset any conflicting styles */
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Ensure scrollable area works on all devices */
+.sidebar-scrollbar {
+  /* Enable native scrolling */
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  
+  /* Touch scrolling for mobile devices */
+  -webkit-overflow-scrolling: touch;
+  
+  /* Prevent scroll bouncing at edges */
+  overscroll-behavior-y: contain;
+  
+  /* Ensure element can receive scroll events */
+  pointer-events: auto;
+  touch-action: pan-y;
+  
+  /* Fix for some browsers */
+  will-change: scroll-position;
+  
+  /* Ensure content is scrollable */
+  height: 100%;
+  max-height: 100%;
+}
+
+/* Ensure content container allows scrolling */
+.sidebar-scrollbar > * {
+  /* Remove any height constraints that might prevent scrolling */
+  min-height: auto !important;
+  height: auto !important;
+}
+
+/* Fix for MacBook trackpad scrolling */
+@supports (-webkit-overflow-scrolling: touch) {
+  .sidebar-scrollbar {
+    /* Momentum scrolling for iOS/MacOS */
+    -webkit-overflow-scrolling: touch;
+    /* 3D acceleration for smooth scrolling */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+}
+
+/* Ensure the flex container allows proper scrolling */
+.sidebar .flex-1 {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Debug: Make scrollbar always visible for testing */
+.sidebar[data-collapsed="false"] .sidebar-scrollbar::-webkit-scrollbar {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Ensure scrollbar thumb is always visible when hovering sidebar */
+.sidebar[data-collapsed="false"] .sidebar-scrollbar::-webkit-scrollbar-thumb {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+
+/* Final fixes for sidebar scrolling */
+.sidebar-scrollbar {
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure the motion div doesn't interfere with scrolling */
+.sidebar-scrollbar > div[class*="motion"] {
+  position: relative;
+  width: 100%;
+}
+
+/* Force hardware acceleration for smooth scrolling */
+.sidebar-scrollbar {
+  backface-visibility: hidden;
+  perspective: 1000;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Ensure scrollbar is interactive on all devices */
+.sidebar[data-collapsed="false"] .sidebar-scrollbar {
+  cursor: default;
+}
+
+/* Add padding at bottom to ensure last item is visible */
+.sidebar-scrollbar > div {
+  padding-bottom: 20px;
+}
+/* CRITICAL FIX: Force sidebar scrolling to work on all devices */
+
+/* Remove any height constraints that might prevent scrolling */
+.sidebar-scrollbar > div {
+  min-height: unset !important;
+  height: auto !important;
+}
+
+/* Ensure the parent container has proper dimensions */
+.sidebar .flex-1 {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* The actual scrollable container */
+.sidebar-scrollbar {
+  flex: 1 1 auto;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: 100%;
+  width: 100%;
+  
+  /* Touch and trackpad scrolling */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  
+  /* Ensure it can receive events */
+  pointer-events: auto;
+  position: relative;
+  
+  /* Force GPU acceleration */
+  transform: translateZ(0);
+  will-change: scroll-position;
+}
+
+/* Test: Add a visible border to confirm the scrollable area */
+.sidebar[data-collapsed="false"] .sidebar-scrollbar {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Ensure content inside can overflow */
+.sidebar-scrollbar > div {
+  width: 100%;
+  position: relative;
+}
+
+/* Debug: Force scrollbar visibility on webkit browsers */
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 12px !important;
+  height: 12px !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+
+/* FINAL FIX: Ensure sidebar content has proper minimum height */
+.sidebar-scrollbar motion-div {
+  display: block !important;
+  width: 100% !important;
+}
+
+/* Add minimum padding to ensure content is scrollable */
+.sidebar-scrollbar > div:last-child {
+  padding-bottom: 50px;
+}
+
+/* Fix for collapsed sidebar - hide overflow */
+.sidebar[data-collapsed="true"] * {
+  overflow: hidden !important;
+}
+
+/* Only show scrollbar when expanded */
+.sidebar[data-collapsed="false"] .sidebar-scrollbar {
+  overflow-y: auto !important;
+}
+
+/* Test: Add background to scrollable area to visualize it */
+.sidebar[data-collapsed="false"] .sidebar-scrollbar {
+  background: rgba(255, 255, 255, 0.02);
+}

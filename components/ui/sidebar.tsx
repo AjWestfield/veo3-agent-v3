@@ -3,13 +3,13 @@ import { cn } from "@/lib/utils"
 import * as React from "react"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "./tooltip-safe"
 
-import { ScrollAreaSafe } from "@/components/ui/scroll-area-safe"
 import { motion } from "framer-motion"
 import { MessageSquare, Plus, Music, Trash2, User, Settings, X, Clock } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useImages } from "@/contexts/images-context"
 import { useVideos } from "@/contexts/videos-context"
 import { useAudios } from "@/contexts/audios-context"
@@ -64,8 +64,8 @@ const staggerVariants = {
 const SidebarHeader = ({ isCollapsed }: { isCollapsed: boolean }) => (
   <div className="flex h-[54px] w-full shrink-0 items-center border-b border-[#4a4a4a] p-2">
     <Button
-      variant="ghost"
-      size="sm"
+      variant={"ghost" as const}
+      size={"sm" as const}
       className="flex w-full items-center justify-start gap-2 px-2 text-white hover:bg-[#404040]"
     >
       <Avatar className="rounded size-4 bg-gray-700">
@@ -96,8 +96,8 @@ const SidebarSectionHeader = ({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="ghost"
-              size="icon"
+              variant={"ghost" as const}
+              size={"icon" as const}
               className="h-6 w-6 text-gray-500 transition-colors hover:text-red-400"
               onClick={onClear}
             >
@@ -121,16 +121,28 @@ const MediaGrid = React.memo(function MediaGrid({
   onItemDelete,
   showDeleteButton = false,
   emptyMessage = "No images yet",
-  mediaType = "image"
+  mediaType = "image",
+  isSelectionMode = false,
+  selectedIds = [],
+  onItemSelect,
+  onRetryItem,
+  retryingItems = new Set()
 }: {
   isCollapsed: boolean
   items: { id: string; src: string; prompt?: string }[]
   onItemClick?: (item: any) => void
-  onItemDelete?: (id: string) => void
+  onItemDelete?: (id: string) => void | Promise<boolean>
   showDeleteButton?: boolean
   emptyMessage?: string
   mediaType?: "image" | "video" | "audio"
+  isSelectionMode?: boolean
+  selectedIds?: string[]
+  onItemSelect?: (id: string) => void
+  onRetryItem?: (id: string) => void
+  retryingItems?: Set<string>
 }) {
+  const [brokenItems, setBrokenItems] = React.useState<Set<string>>(new Set())
+  
   return (
     <motion.div variants={itemVariants}>
       {!isCollapsed && (
@@ -138,24 +150,67 @@ const MediaGrid = React.memo(function MediaGrid({
           {items.map((item) => (
             <div key={item.id} className="relative group">
               <div
-                className="aspect-square rounded-md bg-[#404040] overflow-hidden cursor-pointer relative"
-                onClick={() => onItemClick?.(item)}
+                className={`aspect-square rounded-md bg-[#404040] overflow-hidden cursor-pointer relative transition-all ${
+                  isSelectionMode && selectedIds.includes(item.id) 
+                    ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-[#1a1a1a]' 
+                    : ''
+                }`}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    onItemSelect?.(item.id)
+                  } else {
+                    onItemClick?.(item)
+                  }
+                }}
               >
                 {mediaType === "video" ? (
                   <>
-                    <video
-                      src={item.src}
-                      className="w-full h-full object-cover"
-                      muted
-                      playsInline
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors">
-                      <div className="w-6 h-6 bg-white/80 rounded-full flex items-center justify-center">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                          <path d="M8 5v14l11-7z" fill="black"/>
+                    {!brokenItems.has(item.id) ? (
+                      <>
+                        <video
+                          src={item.src}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          preload="metadata"
+                          onError={(e) => {
+                            console.log('Video failed to load:', item.src)
+                            setBrokenItems(prev => new Set(prev).add(item.id))
+                          }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors">
+                          <div className="w-6 h-6 bg-white/80 rounded-full flex items-center justify-center">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                              <path d="M8 5v14l11-7z" fill="black"/>
+                            </svg>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-gray-600 to-gray-800 flex flex-col items-center justify-center text-white text-xs">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="mb-1 opacity-60">
+                          <path d="M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V10.5L1,13V20A1,1 0 0,0 2,21H22A1,1 0 0,0 23,20V13L21,10.5M16,10.5H15.5L14,8.75L12.5,10.5H7.5L9,8.75L7.5,7H16V10.5Z" />
                         </svg>
+                        <span className="opacity-80 mb-1">Video Unavailable</span>
+                        {onRetryItem && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setBrokenItems(prev => {
+                                const newSet = new Set(prev)
+                                newSet.delete(item.id)
+                                return newSet
+                              })
+                              onRetryItem(item.id)
+                            }}
+                            disabled={retryingItems.has(item.id)}
+                            className="text-xs bg-blue-500 hover:bg-blue-600 disabled:bg-gray-500 px-2 py-1 rounded text-white transition-colors"
+                          >
+                            {retryingItems.has(item.id) ? 'Retrying...' : 'Retry'}
+                          </button>
+                        )}
                       </div>
-                    </div>
+                    )}
                   </>
                 ) : mediaType === "audio" ? (
                   <div className="w-full h-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
@@ -168,15 +223,34 @@ const MediaGrid = React.memo(function MediaGrid({
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
                   />
                 )}
+                
+                {/* Selection checkbox overlay */}
+                {isSelectionMode && (
+                  <div className={`absolute inset-0 bg-black/40 transition-opacity ${
+                    selectedIds.includes(item.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}>
+                    <div className="absolute top-2 right-2">
+                      <Checkbox
+                        checked={selectedIds.includes(item.id)}
+                        onCheckedChange={() => onItemSelect?.(item.id)}
+                        className="bg-white/20 border-white/50 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               {showDeleteButton && onItemDelete && (
                 <button
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation()
-                    onItemDelete(item.id)
+                    const result = onItemDelete(item.id)
+                    if (result instanceof Promise) {
+                      await result
+                    }
                   }}
                   className="absolute top-1 right-1 w-5 h-5 bg-black/70 hover:bg-black/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Delete image"
+                  aria-label={`Delete ${mediaType}`}
                 >
                   <X className="h-3 w-3 text-white" />
                 </button>
@@ -213,7 +287,8 @@ const AudioList = ({ isCollapsed, items }: { isCollapsed: boolean; items: { id: 
 interface SessionNavBarProps {
   onSettingsClick?: () => void
   onEditImage?: (url: string, alt: string) => void
-  onMultiEditClick?: () => void
+  onAnimateImage?: (url: string, alt: string) => void
+  onMultiEditClick?: (selectedImages: Array<{ id: string; url: string; prompt?: string }>) => void
   onImageClick?: (imageData: any) => void
   onVideoClick?: (videoData: any) => void
   onAudioClick?: (audioData: any) => void
@@ -225,6 +300,7 @@ interface SessionNavBarProps {
 export const SessionNavBar = React.memo(function SessionNavBar({ 
   onSettingsClick, 
   onEditImage, 
+  onAnimateImage,
   onMultiEditClick, 
   onImageClick, 
   onVideoClick,
@@ -236,11 +312,63 @@ export const SessionNavBar = React.memo(function SessionNavBar({
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [audio, setAudio] = useState<{ id: string; name: string }[]>([])
   const [selectedImage, setSelectedImage] = useState<any>(null)
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([])
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [retryingVideos, setRetryingVideos] = useState<Set<string>>(new Set())
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  const { images, removeImage, clearImages } = useImages()
-  const { videos, removeVideo, clearVideos } = useVideos()
-  const { audios, removeAudio, clearAudios } = useAudios()
+  const { images, removeImageWithConfirmation, undoDelete: undoImageDelete, recentlyDeleted: recentlyDeletedImage, clearImages } = useImages()
+  const { videos, removeVideoWithConfirmation, undoDelete: undoVideoDelete, recentlyDeleted: recentlyDeletedVideo, clearVideos, retryFailedVideo } = useVideos()
+  const { audios, removeAudioWithConfirmation, undoDelete: undoAudioDelete, recentlyDeleted: recentlyDeletedAudio, clearAudios } = useAudios()
   const { sessions, deleteSession, clearAllSessions } = useChatSessions()
+
+  // Selection helper functions
+  const toggleImageSelection = (imageId: string) => {
+    setSelectedImageIds(prev => 
+      prev.includes(imageId) 
+        ? prev.filter(id => id !== imageId)
+        : [...prev, imageId]
+    )
+  }
+
+  const selectAllImages = () => {
+    setSelectedImageIds(images.map(img => img.id))
+  }
+
+  const deselectAllImages = () => {
+    setSelectedImageIds([])
+  }
+
+  const getSelectedImages = () => {
+    return images.filter(img => selectedImageIds.includes(img.id))
+  }
+
+  const handleMultiEditClick = () => {
+    if (onMultiEditClick && selectedImageIds.length > 0) {
+      const selectedImages = getSelectedImages().map(img => ({
+        id: img.id,
+        url: img.url,
+        prompt: img.prompt
+      }))
+      onMultiEditClick(selectedImages)
+      // Reset selection after opening modal
+      setSelectedImageIds([])
+      setIsSelectionMode(false)
+    }
+  }
+
+  // Ensure scrolling works when content changes
+  useEffect(() => {
+    if (scrollRef.current && !isCollapsed) {
+      // Force browser to recalculate scrollable area
+      scrollRef.current.style.overflow = 'hidden';
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.style.overflow = 'auto';
+        }
+      }, 0);
+    }
+  }, [images.length, videos.length, audios.length, sessions.length, isCollapsed])
 
   const handleClearChatHistory = useCallback(() => {
     clearAllSessions()
@@ -262,11 +390,33 @@ export const SessionNavBar = React.memo(function SessionNavBar({
     }
   }, [clearVideos])
 
+
   const handleClearAudios = useCallback(() => {
     if (window.confirm('Are you sure you want to clear all tracked audio files?')) {
       clearAudios()
     }
   }, [clearAudios])
+
+  const handleRetryVideo = useCallback(async (videoId: string) => {
+    setRetryingVideos(prev => new Set(prev).add(videoId))
+    
+    try {
+      const success = await retryFailedVideo(videoId)
+      if (success) {
+        console.log('Video retry successful for:', videoId)
+      } else {
+        console.log('Video retry failed for:', videoId)
+      }
+    } catch (error) {
+      console.error('Error retrying video:', error)
+    } finally {
+      setRetryingVideos(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(videoId)
+        return newSet
+      })
+    }
+  }, [retryFailedVideo])
 
   return (
     <>
@@ -278,26 +428,58 @@ export const SessionNavBar = React.memo(function SessionNavBar({
       transition={transitionProps}
       onMouseEnter={() => setIsCollapsed(false)}
       onMouseLeave={() => setIsCollapsed(true)}
+      data-collapsed={isCollapsed}
     >
-      <motion.div
-        className="relative z-40 flex h-full shrink-0 flex-col bg-[#2f2f2f] text-gray-400 transition-all"
+        <motion.div
+        className="relative z-40 flex h-full shrink-0 flex-col bg-[#2f2f2f] text-gray-400 transition-all overflow-hidden"
         variants={contentVariants}
       >
         <SidebarHeader isCollapsed={isCollapsed} />
 
-        <div className="flex flex-col p-2">
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start gap-2 text-white hover:bg-[#404040]"
-            onClick={onNewChat}
-          >
-            <Plus className="h-4 w-4" />
-            <motion.span variants={itemVariants}>{!isCollapsed && "New Chat"}</motion.span>
-          </Button>
-        </div>
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="flex flex-col p-2 border-b border-[#4a4a4a]">
+            <Button variant={"ghost" as const} className="w-full justify-start gap-2 text-white hover:bg-[#404040] mb-2">
+              <User className="h-4 w-4" />
+              <motion.span variants={itemVariants}>{!isCollapsed && "Account"}</motion.span>
+            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={"ghost" as const}
+                    className="w-full justify-start gap-2 text-white hover:bg-[#404040] mb-2"
+                    onClick={onSettingsClick}
+                  >
+                    <Settings className="h-4 w-4" />
+                    <motion.span variants={itemVariants}>{!isCollapsed && "Settings"}</motion.span>
+                  </Button>
+                </TooltipTrigger>
+                {isCollapsed && (
+                  <TooltipContent side="right">
+                    Settings
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+            <Button 
+              variant={"ghost" as const}
+              className="w-full justify-start gap-2 text-white hover:bg-[#404040]"
+              onClick={onNewChat}
+            >
+              <Plus className="h-4 w-4" />
+              <motion.span variants={itemVariants}>{!isCollapsed && "New Chat"}</motion.span>
+            </Button>
+          </div>
 
-        <ScrollAreaSafe className="grow">
-          <motion.div variants={staggerVariants} className="flex flex-col gap-4 p-2 pt-0">
+          <div 
+            ref={scrollRef}
+            className="flex-1 overflow-y-auto overflow-x-hidden sidebar-scrollbar h-full"
+            onWheel={(e: React.WheelEvent) => {
+              // Prevent scroll event from bubbling up
+              e.stopPropagation();
+            }}
+          >
+          <motion.div variants={staggerVariants} className="flex flex-col gap-4 p-2">
             <div>
               <SidebarSectionHeader 
                 title={`Chat History${!isCollapsed && sessions.length > 0 ? ` (${sessions.length})` : ''}`} 
@@ -350,19 +532,78 @@ export const SessionNavBar = React.memo(function SessionNavBar({
                 isCollapsed={isCollapsed}
                 onClear={images.length > 0 ? handleClearImages : undefined}
               />
-              {!isCollapsed && images.length > 0 && onMultiEditClick && (
-                <motion.div variants={itemVariants} className="px-2 mb-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-center gap-2 text-xs bg-transparent border-[#4a4a4a] text-white hover:bg-[#404040] hover:text-white"
-                    onClick={onMultiEditClick}
+              {!isCollapsed && recentlyDeletedImage && (
+                <motion.div 
+                  variants={itemVariants} 
+                  className="mx-2 mb-2 p-2 bg-orange-500/20 border border-orange-500/30 rounded-md flex items-center justify-between text-xs"
+                >
+                  <span className="text-orange-300">Image deleted</span>
+                  <button
+                    onClick={undoImageDelete}
+                    className="text-orange-300 hover:text-orange-100 underline"
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit Multiple
-                  </Button>
+                    Undo
+                  </button>
+                </motion.div>
+              )}
+              {!isCollapsed && images.length > 0 && onMultiEditClick && (
+                <motion.div variants={itemVariants} className="px-2 mb-2 space-y-2">
+                  {!isSelectionMode ? (
+                    <Button
+                      variant={"outline" as const}
+                      size={"sm" as const}
+                      className="w-full justify-center gap-2 text-xs bg-transparent border-[#4a4a4a] text-white hover:bg-[#404040] hover:text-white"
+                      onClick={() => setIsSelectionMode(true)}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Select Images to Edit
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>{selectedImageIds.length} selected</span>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={selectAllImages}
+                            className="text-blue-400 hover:text-blue-300"
+                          >
+                            All
+                          </button>
+                          <span>•</span>
+                          <button
+                            onClick={deselectAllImages}
+                            className="text-blue-400 hover:text-blue-300"
+                          >
+                            None
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant={"outline" as const}
+                          size={"sm" as const}
+                          className="flex-1 text-xs bg-transparent border-[#4a4a4a] text-white hover:bg-[#404040]"
+                          onClick={() => {
+                            setIsSelectionMode(false)
+                            setSelectedImageIds([])
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant={"outline" as const}
+                          size={"sm" as const}
+                          className="flex-1 text-xs bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30 disabled:opacity-50"
+                          onClick={handleMultiEditClick}
+                          disabled={selectedImageIds.length === 0}
+                        >
+                          Edit {selectedImageIds.length > 0 ? selectedImageIds.length : ''}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
               <MediaGrid
@@ -373,8 +614,11 @@ export const SessionNavBar = React.memo(function SessionNavBar({
                   prompt: img.prompt
                 }))}
                 onItemClick={onImageClick || handleImageClick}
-                onItemDelete={removeImage}
-                showDeleteButton={true}
+                onItemDelete={removeImageWithConfirmation}
+                showDeleteButton={!isSelectionMode}
+                isSelectionMode={isSelectionMode}
+                selectedIds={selectedImageIds}
+                onItemSelect={toggleImageSelection}
               />
             </div>
 
@@ -384,6 +628,20 @@ export const SessionNavBar = React.memo(function SessionNavBar({
                 isCollapsed={isCollapsed}
                 onClear={videos.length > 0 ? handleClearVideos : undefined}
               />
+              {!isCollapsed && recentlyDeletedVideo && (
+                <motion.div 
+                  variants={itemVariants} 
+                  className="mx-2 mb-2 p-2 bg-orange-500/20 border border-orange-500/30 rounded-md flex items-center justify-between text-xs"
+                >
+                  <span className="text-orange-300">Video deleted</span>
+                  <button
+                    onClick={undoVideoDelete}
+                    className="text-orange-300 hover:text-orange-100 underline"
+                  >
+                    Undo
+                  </button>
+                </motion.div>
+              )}
               <MediaGrid
                 isCollapsed={isCollapsed}
                 items={videos.map(vid => ({
@@ -397,7 +655,9 @@ export const SessionNavBar = React.memo(function SessionNavBar({
                     onVideoClick(item)
                   }
                 }}
-                onItemDelete={removeVideo}
+                onItemDelete={removeVideoWithConfirmation}
+                onRetryItem={handleRetryVideo}
+                retryingItems={retryingVideos}
                 showDeleteButton={true}
                 emptyMessage="No videos yet"
                 mediaType="video"
@@ -410,6 +670,20 @@ export const SessionNavBar = React.memo(function SessionNavBar({
                 isCollapsed={isCollapsed}
                 onClear={audios.length > 0 ? handleClearAudios : undefined}
               />
+              {!isCollapsed && recentlyDeletedAudio && (
+                <motion.div 
+                  variants={itemVariants} 
+                  className="mx-2 mb-2 p-2 bg-orange-500/20 border border-orange-500/30 rounded-md flex items-center justify-between text-xs"
+                >
+                  <span className="text-orange-300">Audio deleted</span>
+                  <button
+                    onClick={undoAudioDelete}
+                    className="text-orange-300 hover:text-orange-100 underline"
+                  >
+                    Undo
+                  </button>
+                </motion.div>
+              )}
               <MediaGrid
                 isCollapsed={isCollapsed}
                 items={audios.map(aud => ({
@@ -423,39 +697,14 @@ export const SessionNavBar = React.memo(function SessionNavBar({
                     onAudioClick(item)
                   }
                 }}
-                onItemDelete={removeAudio}
+                onItemDelete={removeAudioWithConfirmation}
                 showDeleteButton={true}
                 emptyMessage="No audio files yet"
                 mediaType="audio"
               />
             </div>
-          </motion.div>
-        </ScrollAreaSafe>
-
-        <div className="mt-auto border-t border-[#4a4a4a] p-2">
-          <Button variant="ghost" className="w-full justify-start gap-2 text-white hover:bg-[#404040]">
-            <User className="h-4 w-4" />
-            <motion.span variants={itemVariants}>{!isCollapsed && "Account"}</motion.span>
-          </Button>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-2 text-white hover:bg-[#404040]"
-                  onClick={onSettingsClick}
-                >
-                  <Settings className="h-4 w-4" />
-                  <motion.span variants={itemVariants}>{!isCollapsed && "Settings"}</motion.span>
-                </Button>
-              </TooltipTrigger>
-              {isCollapsed && (
-                <TooltipContent side="right">
-                  Settings
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+            </motion.div>
+          </div>
         </div>
       </motion.div>
     </motion.div>
@@ -493,21 +742,40 @@ export const SessionNavBar = React.memo(function SessionNavBar({
               className="max-w-full max-h-[90vh] object-contain"
             />
 
-            {/* Edit Image button */}
-            {onEditImage && (
-              <button
-                type="button"
-                onClick={() => {
-                  onEditImage(selectedImage.src, selectedImage.prompt || "Generated image")
-                  setSelectedImage(null)
-                }}
-                className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg backdrop-blur-sm transition-colors flex items-center gap-2 border border-white/20"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Edit Image
-              </button>
+            {/* Action buttons */}
+            {(onEditImage || onAnimateImage) && (
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                {onEditImage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onEditImage(selectedImage.src, selectedImage.prompt || "Generated image")
+                      setSelectedImage(null)
+                    }}
+                    className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg backdrop-blur-sm transition-colors flex items-center gap-2 border border-white/20"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit Image
+                  </button>
+                )}
+                {onAnimateImage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onAnimateImage(selectedImage.src, selectedImage.prompt || "Generated image")
+                      setSelectedImage(null)
+                    }}
+                    className="bg-purple-600/80 hover:bg-purple-700/90 text-white px-4 py-2 rounded-lg backdrop-blur-sm transition-colors flex items-center gap-2 border border-purple-500/20"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                    Animate
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

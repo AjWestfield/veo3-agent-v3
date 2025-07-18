@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { ImagePromptEnhancer } from '@/components/ui/image-prompt-enhancer'
 import { Notification } from '@/components/notification'
 import { getAspectRatioString, getClosestStandardSize } from '@/lib/image-utils'
 import { ImageProcessingPlaceholder } from '@/components/image-processing-placeholder'
@@ -147,13 +147,14 @@ export function ImageEditModal({ isOpen, onClose, imageUrl, onEditComplete }: Im
           <Label htmlFor="edit-prompt" className="text-white">
             Describe how you want to edit this image
           </Label>
-          <Textarea
+          <ImagePromptEnhancer
             id="edit-prompt"
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={setPrompt}
             placeholder="e.g., Make it look like a painting, Add a sunset in the background, Change to cyberpunk style..."
-            className="min-h-[100px] bg-[#2f2f2f] border-[#4a4a4a] text-white placeholder:text-gray-500"
+            className="bg-[#2f2f2f] border-[#4a4a4a] text-white placeholder:text-gray-500"
             disabled={isEditing}
+            imageUrls={[imageUrl]}
           />
           <p className="text-xs text-gray-400">
             The image will be edited using Wavespeed AI (Flux Kontext Max) while preserving its aspect ratio

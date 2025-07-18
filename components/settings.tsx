@@ -28,20 +28,51 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ isOpen, onOpenChange }: SettingsPanelProps) {
-  const { settings, updateImageGenerationSettings, resetSettings } = useSettings()
+  const { settings, updateImageGenerationSettings, updateVideoGenerationSettings, resetSettings } = useSettings()
   
-  // Use temporary state for settings changes
-  const [tempSettings, setTempSettings] = useState(settings.imageGeneration)
+  // Use temporary state for settings changes with fallback values
+  const [tempSettings, setTempSettings] = useState(settings.imageGeneration || {
+    model: 'openai',
+    openaiModel: 'gpt-image-1',
+    size: '1024x1024',
+    quality: 'high',
+    style: 'vivid',
+    guidanceScale: 3.5,
+    safetyTolerance: '2'
+  })
+  const [tempVideoSettings, setTempVideoSettings] = useState(settings.videoGeneration || {
+    model: 'kling-2.1',
+    duration: 5,
+    quality: 'standard',
+    aspectRatio: '16:9',
+    enhancePrompt: true
+  })
   const [hasChanges, setHasChanges] = useState(false)
   const [notification, setNotification] = useState<{ message: string; description?: string } | null>(null)
+  const [activeTab, setActiveTab] = useState<'image' | 'video'>('image')
 
   // Reset temp settings when panel opens
   useEffect(() => {
     if (isOpen) {
-      setTempSettings(settings.imageGeneration)
+      setTempSettings(settings.imageGeneration || {
+        model: 'openai',
+        openaiModel: 'gpt-image-1',
+        size: '1024x1024',
+        quality: 'high',
+        style: 'vivid',
+        guidanceScale: 3.5,
+        safetyTolerance: '2'
+      })
+      setTempVideoSettings(settings.videoGeneration || {
+        model: 'kling-2.1',
+        duration: 5,
+        quality: 'standard',
+        aspectRatio: '16:9',
+        enhancePrompt: true
+      })
       setHasChanges(false)
     }
-  }, [isOpen, settings.imageGeneration])
+  }, [isOpen, settings.imageGeneration, settings.videoGeneration])
 
   const handleModelChange = (model: 'openai' | 'wavespeed') => {
     setTempSettings({ ...tempSettings, model })
@@ -78,21 +109,62 @@ export function SettingsPanel({ isOpen, onOpenChange }: SettingsPanelProps) {
     setHasChanges(true)
   }
 
+  // Video generation handlers
+  const handleVideoModelChange = (model: 'kling-2.1' | 'veo-3-fast') => {
+    setTempVideoSettings({ ...tempVideoSettings, model })
+    setHasChanges(true)
+  }
+
+  const handleVideoDurationChange = (duration: 5 | 10) => {
+    setTempVideoSettings({ ...tempVideoSettings, duration })
+    setHasChanges(true)
+  }
+
+  const handleVideoQualityChange = (quality: 'standard' | 'pro') => {
+    setTempVideoSettings({ ...tempVideoSettings, quality })
+    setHasChanges(true)
+  }
+
+  const handleVideoAspectRatioChange = (aspectRatio: '16:9' | '9:16') => {
+    setTempVideoSettings({ ...tempVideoSettings, aspectRatio })
+    setHasChanges(true)
+  }
+
+  const handleEnhancePromptChange = (checked: boolean) => {
+    setTempVideoSettings({ ...tempVideoSettings, enhancePrompt: checked })
+    setHasChanges(true)
+  }
+
   const handleApplyAndSave = () => {
     updateImageGenerationSettings(tempSettings)
+    updateVideoGenerationSettings(tempVideoSettings)
     setHasChanges(false)
     setNotification({
       message: "Settings saved",
-      description: `Image generation will now use ${tempSettings.model === 'openai' 
-        ? 'GPT-Image-1'
-        : 'Wavespeed AI Flux Dev LoRA Ultra Fast'}`
+      description: `Settings updated for ${activeTab === 'image' ? 'image' : 'video'} generation`
     })
     onOpenChange(false)
   }
 
   const handleReset = () => {
     resetSettings()
-    setTempSettings(settings.imageGeneration)
+    // Use DEFAULT_SETTINGS values after reset
+    setTempSettings({
+      model: 'openai',
+      openaiModel: 'gpt-image-1',
+      size: '1024x1024',
+      quality: 'high',
+      style: 'vivid',
+      guidanceScale: 3.5,
+      safetyTolerance: '2'
+    })
+    setTempVideoSettings({
+      model: 'kling-2.1',
+      duration: 5,
+      quality: 'standard',
+      aspectRatio: '16:9',
+      enhancePrompt: true
+    })
     setHasChanges(false)
     setNotification({
       message: "Settings reset",
@@ -128,13 +200,40 @@ export function SettingsPanel({ isOpen, onOpenChange }: SettingsPanelProps) {
         <SheetHeader>
           <SheetTitle className="text-white">Settings</SheetTitle>
           <SheetDescription className="text-gray-400">
-            Configure your image generation preferences
+            Configure your generation preferences
           </SheetDescription>
+          
+          {/* Tabs */}
+          <div className="flex space-x-1 bg-[#2f2f2f] rounded-lg p-1 mt-4">
+            <button
+              onClick={() => setActiveTab('image')}
+              className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'image' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Image Generation
+            </button>
+            <button
+              onClick={() => setActiveTab('video')}
+              className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'video' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Video Generation
+            </button>
+          </div>
         </SheetHeader>
         
         <div className="mt-6 space-y-6">
-          {/* Image Generation Model */}
-          <div className="space-y-2">
+          {/* Image Generation Settings */}
+          {activeTab === 'image' && (
+            <>
+              {/* Image Generation Model */}
+              <div className="space-y-2">
             <Label className="text-white">Image Generation Model</Label>
             <Select
               value={tempSettings.model}
@@ -246,23 +345,129 @@ export function SettingsPanel({ isOpen, onOpenChange }: SettingsPanelProps) {
             </>
           )}
 
-          {/* Size Selection */}
-          <div className="space-y-2">
-            <Label className="text-white">Image Size</Label>
-            <Select
-              value={tempSettings.size}
-              onValueChange={handleSizeChange}
-            >
-              <SelectTrigger className="bg-[#2f2f2f] border-[#4a4a4a] text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-[#2f2f2f] border-[#4a4a4a] text-white">
-                {getAvailableSizes().map(size => (
-                  <SelectItem key={size} value={size}>{size}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              {/* Size Selection */}
+              <div className="space-y-2">
+                <Label className="text-white">Image Size</Label>
+                <Select
+                  value={tempSettings.size}
+                  onValueChange={handleSizeChange}
+                >
+                  <SelectTrigger className="bg-[#2f2f2f] border-[#4a4a4a] text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#2f2f2f] border-[#4a4a4a] text-white">
+                    {getAvailableSizes().map(size => (
+                      <SelectItem key={size} value={size}>{size}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Model Info */}
+              <div className="text-xs text-gray-400 space-y-1">
+                <p className="font-semibold">Current Model:</p>
+                <p>
+                  {tempSettings.model === 'openai'
+                    ? 'GPT-Image-1'
+                    : 'Wavespeed AI Flux Dev LoRA Ultra Fast'}
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* Video Generation Settings */}
+          {activeTab === 'video' && tempVideoSettings && (
+            <>
+              {/* Video Generation Model */}
+              <div className="space-y-2">
+                <Label className="text-white">Video Generation Model</Label>
+                <Select
+                  value={tempVideoSettings.model || 'kling-2.1'}
+                  onValueChange={handleVideoModelChange}
+                >
+                  <SelectTrigger className="bg-[#2f2f2f] border-[#4a4a4a] text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#2f2f2f] border-[#4a4a4a] text-white">
+                    <SelectItem value="kling-2.1">Kling 2.1 AI</SelectItem>
+                    <SelectItem value="veo-3-fast">VEO 3 Fast</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Kling 2.1 Specific Settings */}
+              {tempVideoSettings?.model === 'kling-2.1' && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-white">Duration</Label>
+                    <Select
+                      value={(tempVideoSettings.duration || 5).toString()}
+                      onValueChange={(value) => handleVideoDurationChange(Number(value) as 5 | 10)}
+                    >
+                      <SelectTrigger className="bg-[#2f2f2f] border-[#4a4a4a] text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#2f2f2f] border-[#4a4a4a] text-white">
+                        <SelectItem value="5">5 seconds</SelectItem>
+                        <SelectItem value="10">10 seconds</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-white">Quality</Label>
+                    <Select
+                      value={tempVideoSettings.quality || 'standard'}
+                      onValueChange={handleVideoQualityChange}
+                    >
+                      <SelectTrigger className="bg-[#2f2f2f] border-[#4a4a4a] text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#2f2f2f] border-[#4a4a4a] text-white">
+                        <SelectItem value="standard">Standard (720p)</SelectItem>
+                        <SelectItem value="pro">Pro (1080p)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+
+              {/* VEO 3 Fast Specific Settings */}
+              {tempVideoSettings?.model === 'veo-3-fast' && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-white">Duration</Label>
+                    <div className="text-sm text-gray-400 bg-[#2f2f2f] p-3 rounded-lg">
+                      Fixed at 8 seconds (16:9 aspect ratio)
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <Label className="text-white">Enhance Prompt</Label>
+                    <Switch
+                      checked={tempVideoSettings.enhancePrompt !== false}
+                      onCheckedChange={handleEnhancePromptChange}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Model Info */}
+              <div className="text-xs text-gray-400 space-y-1">
+                <p className="font-semibold">Current Model:</p>
+                <p>
+                  {tempVideoSettings?.model === 'kling-2.1'
+                    ? 'Kling 2.1 AI - Image to Video & Text to Video'
+                    : 'VEO 3 Fast - Google\'s fast text-to-video model'}
+                </p>
+                <p className="text-xs">
+                  {tempVideoSettings?.model === 'kling-2.1'
+                    ? `Duration: ${tempVideoSettings?.duration || 5}s, Quality: ${tempVideoSettings?.quality || 'standard'}`
+                    : 'Duration: 8s, Aspect Ratio: 16:9, Native Audio'}
+                </p>
+              </div>
+            </>
+          )}
 
           {/* Action Buttons */}
           <div className="pt-4 border-t border-[#4a4a4a] space-y-2">
@@ -282,15 +487,6 @@ export function SettingsPanel({ isOpen, onOpenChange }: SettingsPanelProps) {
             </Button>
           </div>
 
-          {/* Model Info */}
-          <div className="text-xs text-gray-400 space-y-1">
-            <p className="font-semibold">Current Model:</p>
-            <p>
-              {tempSettings.model === 'openai'
-                ? 'GPT-Image-1'
-                : 'Wavespeed AI Flux Dev LoRA Ultra Fast'}
-            </p>
-          </div>
         </div>
       </SheetContent>
     </SheetWrapper>

@@ -315,10 +315,11 @@ export function ChatSessionsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const switchToSession = useCallback((sessionId: string) => {
+    if (sessionId === currentSessionId) return // Prevent switching to same session
     if (sessions.find(s => s.id === sessionId)) {
       setCurrentSessionId(sessionId)
     }
-  }, [sessions])
+  }, [sessions, currentSessionId])
 
   const updateCurrentSession = useCallback((messages: Message[]) => {
     if (!currentSessionId) return

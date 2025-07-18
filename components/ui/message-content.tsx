@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useCallback } from "react"
 import { WebSearchResults } from "@/components/web-search-results"
 
 interface MessageContentProps {
@@ -8,8 +8,11 @@ interface MessageContentProps {
   isStreaming?: boolean
   onImageClick?: (imageUrl: string, altText: string) => void
   onEditImage?: (imageUrl: string, altText: string) => void
+  onAnimateImage?: (imageUrl: string, altText: string) => void
   onFilePathClick?: (filePath: string) => void
   onRelatedQuestionClick?: (question: string) => void
+  onGenerateVideo?: (prompt: string) => void
+  isGeneratingVideo?: boolean
   searchData?: {
     citations?: string[]
     searchResults?: any[]
@@ -29,8 +32,10 @@ interface ClipData {
   content: string
 }
 
-export function MessageContent({ content, isStreaming, onImageClick, onEditImage, onFilePathClick, onRelatedQuestionClick, searchData, searchProgress }: MessageContentProps) {
+export function MessageContent({ content, isStreaming, onImageClick, onEditImage, onAnimateImage, onFilePathClick, onRelatedQuestionClick, onGenerateVideo, isGeneratingVideo, searchData, searchProgress }: MessageContentProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [generatingIndex, setGeneratingIndex] = useState<number | null>(null)
+  const [generatedIndex, setGeneratedIndex] = useState<number | null>(null)
 
   // Check if this is a web search result
   const isWebSearchResult = content.includes("### Sources:") || content.includes("### Related Images:") || searchData || searchProgress
@@ -78,10 +83,26 @@ export function MessageContent({ content, isStreaming, onImageClick, onEditImage
     await copyToClipboard(promptText)
   }
 
-  // Parse the content to detect markdown images and file paths
+  const generateVideo = useCallback(async (prompt: string, index: number) => {
+    if (onGenerateVideo) {
+      setGeneratingIndex(index)
+      try {
+        await onGenerateVideo(prompt)
+        setGeneratedIndex(index)
+        // Show success state briefly, then return to default
+        setTimeout(() => setGeneratedIndex(null), 2000)
+      } catch (error) {
+        console.error('Video generation error:', error)
+      } finally {
+        setGeneratingIndex(null)
+      }
+    }
+  }, [onGenerateVideo])
+
+  // Parse the content to detect markdown images, videos, and file paths
   const renderContent = () => {
-    // Split content by markdown image pattern and file path pattern
-    const combinedPattern = /(\!\[.*?\]\(.*?\))|(\/([\w\-\._~:\/\[\]@!$&'()*+,;=%]+\/)+[\w\-\._~:\/\[\]@!$&'()*+,;=%]+\.\w+)|([A-Za-z]:\\(?:[\w\-\._~:\/\[\]@!$&'()*+,;=%]+\\)*[\w\-\._~:\/\[\]@!$&'()*+,;=%]+\.\w+)/g;
+    // Split content by markdown image pattern, markdown link pattern, and file path pattern
+    const combinedPattern = /(\!\[.*?\]\(.*?\))|(\[.*?\]\(.*?\))|(\/([\w\-\._~:\/\[\]@!$&'()*+,;=%]+\/)+[\w\-\._~:\/\[\]@!$&'()*+,;=%]+\.\w+)|([A-Za-z]:\\(?:[\w\-\._~:\/\[\]@!$&'()*+,;=%]+\\)*[\w\-\._~:\/\[\]@!$&'()*+,;=%]+\.\w+)/g;
     
     const elements: React.ReactNode[] = [];
     let currentIndex = 0;
@@ -106,6 +127,9 @@ export function MessageContent({ content, isStreaming, onImageClick, onEditImage
       // Check if this is a markdown image
       const imageMatch = fullMatch.match(/\!\[(.*?)\]\((.*?)\)/);
       
+      // Check if this is a markdown link (potential video)
+      const linkMatch = fullMatch.match(/\[(.*?)\]\((.*?)\)/);
+      
       if (imageMatch) {
         const altText = imageMatch[1];
         const imageUrl = imageMatch[2];
@@ -124,22 +148,85 @@ export function MessageContent({ content, isStreaming, onImageClick, onEditImage
                 }
               }}
             />
-            {onEditImage && !altText.includes('edited') && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditImage(imageUrl, altText);
-                }}
-                className="absolute bottom-2 right-2 bg-black/70 hover:bg-black/90 text-white px-3 py-1.5 rounded-md text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
-                Edit Image
-              </button>
+            {(onEditImage || onAnimateImage) && !altText.includes('edited') && (
+              <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {onEditImage && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditImage(imageUrl, altText);
+                    }}
+                    className="bg-black/70 hover:bg-black/90 text-white px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </svg>
+                    Edit Image
+                  </button>
+                )}
+                {onAnimateImage && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAnimateImage(imageUrl, altText);
+                    }}
+                    className="bg-purple-600/80 hover:bg-purple-700/90 text-white px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                    Animate
+                  </button>
+                )}
+              </div>
             )}
           </div>
         );
+      } else if (linkMatch && !imageMatch) {
+        const linkText = linkMatch[1];
+        const linkUrl = linkMatch[2];
+        
+        // Check if this is a video link
+        const isVideoLink = linkText === 'Watch Video' || 
+                           linkText.toLowerCase().includes('video') ||
+                           linkUrl.match(/\.(mp4|webm|ogg|mov)$/i) ||
+                           linkUrl.includes('replicate.delivery') ||
+                           linkUrl.includes('replicate.com');
+        
+        if (isVideoLink) {
+          elements.push(
+            <div key={`video-${currentIndex++}`} className="my-4 w-full max-w-2xl">
+              <video
+                src={linkUrl}
+                controls
+                autoPlay
+                loop
+                muted
+                className="w-full rounded-lg shadow-lg bg-black"
+                style={{ aspectRatio: '16/9' }}
+              >
+                <source src={linkUrl} type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+              <p className="text-sm text-gray-400 mt-2">
+                {linkText !== 'Watch Video' ? linkText : 'Generated video'}
+              </p>
+            </div>
+          );
+        } else {
+          // Regular link
+          elements.push(
+            <a
+              key={`link-${currentIndex++}`}
+              href={linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline"
+            >
+              {linkText}
+            </a>
+          );
+        }
       } else {
         // This is a file path
         elements.push(
@@ -228,33 +315,72 @@ export function MessageContent({ content, isStreaming, onImageClick, onEditImage
                   {clip.timestamp}
                 </p>
               </div>
-              <button
-                onClick={() => copyToClipboard(clip.content, index)}
-                className={`
-                  px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 shadow-lg
-                  ${copiedIndex === index
-                    ? 'bg-green-500 text-white shadow-green-500/25' 
-                    : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/25'
-                  }
-                `}
-              >
-                {copiedIndex === index ? (
-                  <>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                    Copy Prompt
-                  </>
-                )}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => copyToClipboard(clip.content, index)}
+                  className={`
+                    px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 shadow-lg
+                    ${copiedIndex === index
+                      ? 'bg-green-500 text-white shadow-green-500/25' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/25'
+                    }
+                  `}
+                >
+                  {copiedIndex === index ? (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                      Copy Prompt
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => generateVideo(clip.content, index)}
+                  disabled={generatingIndex !== null || isGeneratingVideo}
+                  className={`
+                    px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 shadow-lg
+                    ${generatedIndex === index
+                      ? 'bg-green-500 text-white shadow-green-500/25' 
+                      : generatingIndex === index || isGeneratingVideo
+                        ? 'bg-purple-500 text-white shadow-purple-500/25 cursor-not-allowed'
+                        : 'bg-purple-500 hover:bg-purple-600 text-white shadow-purple-500/25'
+                    }
+                  `}
+                >
+                  {generatedIndex === index ? (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Generated!
+                    </>
+                  ) : generatingIndex === index || isGeneratingVideo ? (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83" />
+                      </svg>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                      Generate Video
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
             <div className="prose prose-sm prose-invert max-w-none">
               <div className="text-sm text-white/90 whitespace-pre-wrap font-mono bg-black/40 rounded-md p-4 overflow-x-auto">

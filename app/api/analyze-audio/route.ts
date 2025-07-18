@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const base64Audio = Buffer.from(arrayBuffer).toString('base64');
     
     // Use Gemini 2.5 Flash Preview to analyze the audio
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-preview-05-20' });
+    const modelName = 'gemini-2.5-flash-preview-05-20';
     
     const prompt = `Analyze this audio file and provide:
 1. Full transcription with timestamps (format: [MM:SS] text)
@@ -55,18 +55,20 @@ Please format the response as JSON with the following structure:
     });
 
     try {
-      const result = await model.generateContent([
-        {
-          inlineData: {
-            mimeType: audioFile.type || 'audio/mpeg',
-            data: base64Audio
-          }
-        },
-        prompt
-      ]);
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: [
+          {
+            inlineData: {
+              mimeType: audioFile.type || 'audio/mpeg',
+              data: base64Audio
+            }
+          },
+          prompt
+        ]
+      });
 
-      const response = await result.response;
-      const text = response.text();
+      const text = response.text;
       console.log('Gemini response received:', text.substring(0, 200) + '...');
     
       // Parse the JSON response
@@ -106,7 +108,7 @@ Please format the response as JSON with the following structure:
         analysis: analysisResult
       });
 
-    } catch (geminiError) {
+    } catch (geminiError: any) {
       console.error('Gemini API error:', geminiError);
       
       // Check if it's an unsupported media type error

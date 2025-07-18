@@ -12,10 +12,17 @@ export interface Audio {
   duration?: string
 }
 
+export interface DeletedAudio extends Audio {
+  deletedAt: Date
+}
+
 interface AudiosContextType {
   audios: Audio[]
+  recentlyDeleted: DeletedAudio | null
   addAudio: (audio: Omit<Audio, 'id' | 'createdAt'>) => Audio
   removeAudio: (id: string) => void
+  removeAudioWithConfirmation: (id: string) => Promise<boolean>
+  undoDelete: () => void
   clearAudios: () => void
 }
 
@@ -23,6 +30,7 @@ const AudiosContext = createContext<AudiosContextType | undefined>(undefined)
 
 export function AudiosProvider({ children }: { children: React.ReactNode }) {
   const [audios, setAudios] = useState<Audio[]>([])
+  const [recentlyDeleted, setRecentlyDeleted] = useState<DeletedAudio | null>(null)
 
   // Load audios from localStorage on mount
   useEffect(() => {
@@ -58,7 +66,44 @@ export function AudiosProvider({ children }: { children: React.ReactNode }) {
   }
 
   const removeAudio = (id: string) => {
+    const audioToDelete = audios.find(audio => audio.id === id)
+    if (!audioToDelete) return
+    
+    // Store for potential undo
+    setRecentlyDeleted({
+      ...audioToDelete,
+      deletedAt: new Date()
+    })
+    
     setAudios(prev => prev.filter(audio => audio.id !== id))
+    
+    // Clear recently deleted after 10 seconds
+    setTimeout(() => {
+      setRecentlyDeleted(prev => prev?.id === id ? null : prev)
+    }, 10000)
+  }
+
+  const removeAudioWithConfirmation = (id: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (window.confirm('Are you sure you want to delete this audio? You can undo this action for 10 seconds.')) {
+        removeAudio(id)
+        resolve(true)
+      } else {
+        resolve(false)
+      }
+    })
+  }
+
+  const undoDelete = () => {
+    if (!recentlyDeleted) return
+    
+    const { deletedAt, ...audioData } = recentlyDeleted
+    
+    // Re-add the audio
+    setAudios(prev => [audioData, ...prev])
+    
+    // Clear the recently deleted
+    setRecentlyDeleted(null)
   }
 
   const clearAudios = () => {
@@ -66,7 +111,15 @@ export function AudiosProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AudiosContext.Provider value={{ audios, addAudio, removeAudio, clearAudios }}>
+    <AudiosContext.Provider value={{ 
+      audios, 
+      recentlyDeleted, 
+      addAudio, 
+      removeAudio, 
+      removeAudioWithConfirmation, 
+      undoDelete, 
+      clearAudios 
+    }}>
       {children}
     </AudiosContext.Provider>
   )

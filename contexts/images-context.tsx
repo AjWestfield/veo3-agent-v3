@@ -15,11 +15,18 @@ export interface TrackedImage {
   persist?: boolean
 }
 
+export interface DeletedImage extends TrackedImage {
+  deletedAt: Date
+}
+
 interface ImagesContextType {
   images: TrackedImage[]
   selectedImageIds: string[]
+  recentlyDeleted: DeletedImage | null
   addImage: (image: Omit<TrackedImage, 'id' | 'timestamp'>) => TrackedImage
   removeImage: (id: string) => void
+  removeImageWithConfirmation: (id: string) => Promise<boolean>
+  undoDelete: () => void
   clearImages: () => void
   getImageById: (id: string) => TrackedImage | undefined
   selectImage: (id: string) => void
@@ -35,6 +42,7 @@ const ImagesContext = createContext<ImagesContextType | undefined>(undefined)
 export function ImagesProvider({ children }: { children: ReactNode }) {
   const [images, setImages] = useState<TrackedImage[]>([])
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([])
+  const [recentlyDeleted, setRecentlyDeleted] = useState<DeletedImage | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
 
   // Load images from IndexedDB on mount
@@ -124,6 +132,15 @@ export function ImagesProvider({ children }: { children: ReactNode }) {
   }, [saveImageToStorage])
 
   const removeImage = useCallback(async (id: string) => {
+    const imageToDelete = images.find(img => img.id === id)
+    if (!imageToDelete) return
+    
+    // Store for potential undo
+    setRecentlyDeleted({
+      ...imageToDelete,
+      deletedAt: new Date()
+    })
+    
     setImages(prev => prev.filter(img => img.id !== id))
     setSelectedImageIds(prev => prev.filter(selectedId => selectedId !== id))
     
@@ -133,7 +150,40 @@ export function ImagesProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Failed to remove image from storage:', error)
     }
-  }, [])
+    
+    // Clear recently deleted after 10 seconds
+    setTimeout(() => {
+      setRecentlyDeleted(prev => prev?.id === id ? null : prev)
+    }, 10000)
+  }, [images])
+
+  const removeImageWithConfirmation = useCallback(async (id: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (window.confirm('Are you sure you want to delete this image? You can undo this action for 10 seconds.')) {
+        removeImage(id)
+        resolve(true)
+      } else {
+        resolve(false)
+      }
+    })
+  }, [removeImage])
+
+  const undoDelete = useCallback(async () => {
+    if (!recentlyDeleted) return
+    
+    const { deletedAt, ...imageData } = recentlyDeleted
+    
+    // Re-add the image
+    setImages(prev => [imageData, ...prev])
+    
+    // Re-save to IndexedDB if it was persisted
+    if (imageData.persist !== false) {
+      await saveImageToStorage(imageData)
+    }
+    
+    // Clear the recently deleted
+    setRecentlyDeleted(null)
+  }, [recentlyDeleted, saveImageToStorage])
 
   const clearImages = useCallback(async () => {
     setImages([])
@@ -189,8 +239,11 @@ export function ImagesProvider({ children }: { children: ReactNode }) {
     <ImagesContext.Provider value={{ 
       images,
       selectedImageIds,
+      recentlyDeleted,
       addImage, 
       removeImage, 
+      removeImageWithConfirmation,
+      undoDelete,
       clearImages,
       getImageById,
       selectImage,

@@ -90,6 +90,213 @@ class MediaStorage {
     })
   }
 
+  // Download and store video locally as blob
+  async downloadAndStoreVideo(videoUrl: string, videoId: string, metadata: any): Promise<string> {
+    try {
+      console.log('Downloading video for local storage:', videoUrl)
+      
+      // Fetch the video file
+      const response = await fetch(videoUrl)
+      if (!response.ok) {
+        throw new Error(`Failed to download video: ${response.statusText}`)
+      }
+      
+      // Convert to blob
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      
+      // Convert blob to base64 for storage
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const result = reader.result as string
+          resolve(result.split(',')[1]) // Remove data:video/mp4;base64, prefix
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      
+      // Store the video data
+      await this.saveMedia('video', {
+        id: videoId,
+        url: blobUrl, // Store blob URL for immediate use
+        type: 'video',
+        metadata: {
+          ...metadata,
+          base64Data, // Store base64 for persistence
+          originalUrl: videoUrl,
+          fileSize: blob.size,
+          mimeType: blob.type
+        }
+      })
+      
+      console.log('Video stored successfully with blob URL:', blobUrl)
+      return blobUrl
+    } catch (error) {
+      console.error('Failed to download and store video:', error)
+      // Fallback to original URL if download fails
+      return videoUrl
+    }
+  }
+
+  // Restore blob URLs from stored base64 data
+  async restoreVideoBlobUrls(): Promise<Map<string, string>> {
+    const urlMapping = new Map<string, string>()
+    
+    try {
+      const videos = await this.getAllMedia('video')
+      console.log(`Restoring blob URLs for ${videos.length} videos`)
+      
+      for (const video of videos) {
+        if (video.metadata?.base64Data) {
+          try {
+            // Recreate blob URL from base64 data
+            const mimeType = video.metadata.mimeType || 'video/mp4'
+            const blob = this.base64ToBlob(video.metadata.base64Data, mimeType)
+            const blobUrl = URL.createObjectURL(blob)
+            
+            // Store the old URL -> new URL mapping
+            urlMapping.set(video.id, blobUrl)
+            
+            // Update the stored video with new blob URL
+            await this.saveMedia('video', {
+              ...video,
+              url: blobUrl
+            })
+            
+            console.log('Restored blob URL for video:', video.id, 'Size:', blob.size, 'bytes')
+          } catch (blobError) {
+            console.error('Failed to restore blob for video:', video.id, blobError)
+            // Try to use original URL if available
+            if (video.metadata.originalUrl) {
+              urlMapping.set(video.id, video.metadata.originalUrl)
+              console.log('Using original URL as fallback for video:', video.id)
+            }
+          }
+        } else if (video.metadata?.originalUrl && !video.url.startsWith('http')) {
+          // If we have an original URL but no base64 data, use the original URL
+          urlMapping.set(video.id, video.metadata.originalUrl)
+          console.log('Using original URL for video:', video.id)
+        }
+      }
+      
+      console.log(`Successfully restored ${urlMapping.size} video URLs`)
+    } catch (error) {
+      console.error('Failed to restore video blob URLs:', error)
+    }
+    
+    return urlMapping
+  }
+
+  // Validate and clean up broken videos with recovery attempts
+  async validateAndCleanupVideos(): Promise<string[]> {
+    const brokenVideoIds: string[] = []
+    const recoveredVideoIds: string[] = []
+    
+    try {
+      const videos = await this.getAllMedia('video')
+      console.log(`Validating ${videos.length} stored videos`)
+      
+      for (const video of videos) {
+        // Check if video URL is valid
+        if (!video.url || video.url === 'undefined' || video.url === 'null') {
+          console.log('Found video with invalid URL:', video.id)
+          
+          // Try to recover from original URL if available
+          if (video.metadata?.originalUrl) {
+            console.log('Attempting recovery from original URL:', video.metadata.originalUrl)
+            try {
+              const recoveredUrl = await this.downloadAndStoreVideo(
+                video.metadata.originalUrl,
+                video.id,
+                video.metadata
+              )
+              
+              if (recoveredUrl !== video.metadata.originalUrl) {
+                console.log('Successfully recovered video:', video.id)
+                recoveredVideoIds.push(video.id)
+                continue
+              }
+            } catch (recoveryError) {
+              console.error('Failed to recover video:', video.id, recoveryError)
+            }
+          }
+          
+          brokenVideoIds.push(video.id)
+          continue
+        }
+
+        // For external URLs, try to validate them
+        if (video.url.startsWith('http') && !video.metadata?.base64Data) {
+          try {
+            const response = await fetch(video.url, { method: 'HEAD' })
+            const contentType = response.headers.get('content-type')
+            
+            if (!response.ok || !contentType?.startsWith('video/')) {
+              console.log('Found video with broken external URL:', video.id, video.url)
+              
+              // Try to re-download if we have original URL
+              if (video.metadata?.originalUrl && video.metadata.originalUrl !== video.url) {
+                try {
+                  const recoveredUrl = await this.downloadAndStoreVideo(
+                    video.metadata.originalUrl,
+                    video.id,
+                    video.metadata
+                  )
+                  
+                  if (recoveredUrl !== video.metadata.originalUrl) {
+                    console.log('Successfully re-downloaded video:', video.id)
+                    recoveredVideoIds.push(video.id)
+                    continue
+                  }
+                } catch (recoveryError) {
+                  console.error('Failed to re-download video:', video.id, recoveryError)
+                }
+              }
+              
+              brokenVideoIds.push(video.id)
+            }
+          } catch (error) {
+            console.log('Video URL validation failed:', video.id, error)
+            brokenVideoIds.push(video.id)
+          }
+        }
+        
+        // For blob URLs that might be revoked, ensure we have base64 backup
+        if (video.url.startsWith('blob:') && !video.metadata?.base64Data) {
+          console.warn('Found blob URL without base64 backup:', video.id)
+          // Don't delete immediately - blob might still work
+        }
+      }
+
+      // Remove truly broken videos from storage
+      for (const videoId of brokenVideoIds) {
+        await this.deleteMedia('video', videoId)
+        console.log('Removed broken video:', videoId)
+      }
+
+      console.log(`Video validation complete: ${recoveredVideoIds.length} recovered, ${brokenVideoIds.length} removed`)
+      
+    } catch (error) {
+      console.error('Failed to validate and cleanup videos:', error)
+    }
+
+    return brokenVideoIds
+  }
+
+  // Helper function to convert base64 to blob
+  private base64ToBlob(base64Data: string, mimeType: string): Blob {
+    const byteCharacters = atob(base64Data)
+    const byteNumbers = new Array(byteCharacters.length)
+    
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    }
+    
+    const byteArray = new Uint8Array(byteNumbers)
+    return new Blob([byteArray], { type: mimeType })
+  }
+
   async getMedia(type: 'image' | 'video' | 'audio', id: string): Promise<MediaItem | null> {
     const db = await this.ensureDb()
     const transaction = db.transaction([type + 's'], 'readonly')
@@ -225,6 +432,30 @@ class MediaStorage {
       }
       request.onerror = () => reject(request.error)
     })
+  }
+
+  async clearAll(): Promise<void> {
+    try {
+      const db = await this.ensureDb()
+      
+      // Clear all media stores
+      await this.clearMedia('image')
+      await this.clearMedia('video')
+      await this.clearMedia('audio')
+      
+      // Clear all files
+      const transaction = db.transaction(['files'], 'readwrite')
+      const store = transaction.objectStore('files')
+      
+      await new Promise<void>((resolve, reject) => {
+        const request = store.clear()
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
+      })
+    } catch (error) {
+      console.error('Failed to clear all media storage:', error)
+      throw error
+    }
   }
 }
 

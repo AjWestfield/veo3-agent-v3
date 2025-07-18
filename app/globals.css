@@ -53,6 +53,25 @@
   background: rgba(255, 255, 255, 0.5);
 }
 
+/* Sidebar scrollbar styles */
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: #2f2f2f;
+  border-radius: 4px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: #4a4a4a;
+  border-radius: 4px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #5a5a5a;
+}
+
 /* Animation classes for better UX */
 @keyframes fade-in {
   from {
@@ -216,4 +235,18 @@
 
 .animate-in.zoom-in-90 {
   animation-name: zoom-in-90;
+}
+
+/* Video placeholder animations */
+@keyframes slide-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-slide-right {
+  animation: slide-right 10s linear infinite;
 }

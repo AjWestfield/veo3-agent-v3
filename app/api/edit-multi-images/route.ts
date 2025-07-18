@@ -11,6 +11,11 @@ async function getImageAsBase64(imageUrl: string): Promise<string> {
     return imageUrl
   }
   
+  // Check if it's a blob URL (shouldn't happen if frontend converts properly, but handle it)
+  if (imageUrl.startsWith('blob:')) {
+    throw new Error('Blob URLs cannot be processed on the server. Please convert to base64 on the client side.')
+  }
+  
   // Check if it's a local image in our public directory
   if (imageUrl.startsWith('/generated-images/')) {
     try {
@@ -43,8 +48,8 @@ async function getImageAsBase64(imageUrl: string): Promise<string> {
     }
   }
   
-  // Fallback - return as is
-  return imageUrl
+  // Fallback - throw error for unknown URL format
+  throw new Error(`Unsupported image URL format: ${imageUrl}`)
 }
 
 // Helper function to poll Wavespeed for results

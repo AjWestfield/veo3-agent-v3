@@ -130,19 +130,26 @@ const TelescopeIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
-const LightbulbIcon = (props: React.SVGProps<SVGSVGElement>) => (
+const VideoIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
     <path
-      d="M12 7C9.23858 7 7 9.23858 7 12C7 13.3613 7.54402 14.5955 8.42651 15.4972C8.77025 15.8484 9.05281 16.2663 9.14923 16.7482L9.67833 19.3924C9.86537 20.3272 10.6862 21 11.6395 21H12.3605C13.3138 21 14.1346 20.3272 14.3217 19.3924L14.8508 16.7482C14.9472 16.2663 15.2297 15.8484 15.5735 15.4972C16.456 14.5955 17 13.3613 17 12C17 9.23858 14.7614 7 12 7Z"
+      d="M15 10L20.5 6.5A1 1 0 0 1 22 7.5V16.5A1 1 0 0 1 20.5 17.5L15 14"
       stroke="currentColor"
       strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
-    <path d="M12 4V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M18 6L19 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M20 12H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M4 12H3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M5 5L6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M10 17H14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <rect
+      x="2"
+      y="6"
+      width="13"
+      height="12"
+      rx="2"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 )
 
@@ -223,7 +230,7 @@ const toolsList = [
   { id: "searchWeb", name: "Search the web", shortName: "Search", icon: GlobeIcon },
   { id: "writeCode", name: "Write or code", shortName: "Write", icon: PencilIcon },
   { id: "deepResearch", name: "Run deep research", shortName: "Deep Search", icon: TelescopeIcon, extra: "5 left" },
-  { id: "thinkLonger", name: "Think for longer", shortName: "Think", icon: LightbulbIcon },
+  { id: "generateVideo", name: "Generate video", shortName: "Video", icon: VideoIcon },
 ]
 
 const getYouTubeVideoId = (url: string): string | null => {
@@ -237,10 +244,12 @@ interface PromptBoxProps extends React.TextareaHTMLAttributes<HTMLTextAreaElemen
   onFilesChange?: (files: UploadedFile[]) => void
   selectedTool?: string | null
   onToolChange?: (tool: string | null) => void
+  onEditImage?: (imageUrl: string, imageName: string) => void
+  onAnimateImage?: (imageUrl: string, imageName: string) => void
 }
 
 export const PromptBox = React.forwardRef<HTMLTextAreaElement, PromptBoxProps>(
-  ({ className, chatHistory = [], onFilesChange, selectedTool: externalSelectedTool, onToolChange, ...props }, ref) => {
+  ({ className, chatHistory = [], onFilesChange, selectedTool: externalSelectedTool, onToolChange, onEditImage, onAnimateImage, ...props }, ref) => {
     const internalTextareaRef = React.useRef<HTMLTextAreaElement>(null)
     const fileInputRef = React.useRef<HTMLInputElement>(null)
     const [value, setValue] = React.useState("")
@@ -532,6 +541,23 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, PromptBoxProps>(
         
         setIsProcessingPaste(true)
 
+        // Detect platform for better loading message
+        const getPlatformFromUrl = (url: string) => {
+          try {
+            const urlObj = new URL(url)
+            const hostname = urlObj.hostname.toLowerCase()
+            if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) return 'YouTube'
+            if (hostname.includes('facebook.com') || hostname.includes('fb.com') || hostname.includes('fb.watch')) return 'Facebook'
+            if (hostname.includes('instagram.com')) return 'Instagram'
+            if (hostname.includes('tiktok.com') || hostname.includes('vm.tiktok.com')) return 'TikTok'
+            if (hostname.includes('twitter.com') || hostname.includes('x.com')) return 'Twitter/X'
+            return 'video'
+          } catch {
+            return 'video'
+          }
+        }
+
+        const platform = getPlatformFromUrl(url)
         const id = Math.random().toString(36).substr(2, 9)
         const tempFile: UploadedFile = {
           id,
@@ -541,6 +567,8 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, PromptBoxProps>(
           isLoading: true,
         }
         setUploadedFiles((prev) => [...prev, tempFile])
+        
+        console.log(`[Video URL Paste] Downloading ${platform} video...`)
 
         try {
           console.log("[Video URL Paste] Calling API with URL:", url)
@@ -627,27 +655,71 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, PromptBoxProps>(
         } catch (error) {
           console.error("Error downloading video from URL:", error)
           
-          // More detailed error handling
+          // Enhanced error handling with platform-specific messages
           let errorMessage = "Failed to download video"
+          let errorDetails = ""
+          
           if (error instanceof Error) {
             errorMessage = error.message
             
-            // Add more context for common errors
+            // Extract details from API response if available
+            if (errorData?.details) {
+              errorDetails = errorData.details
+            }
+            
+            // Platform-specific error messages
+            const platform = getPlatformFromUrl(url)
+            
+            if (platform === 'YouTube') {
+              if (errorMessage.includes("sign-in verification") || errorMessage.includes("bot")) {
+                errorMessage = "YouTube requires sign-in verification"
+                errorDetails = errorDetails || "This often happens with age-restricted or premium content. Try a public, non-age-restricted video."
+              } else if (errorMessage.includes("rate limit")) {
+                errorMessage = "YouTube rate limit exceeded"
+                errorDetails = errorDetails || "Please wait a few minutes before trying again."
+              } else if (errorMessage.includes("DRM protected")) {
+                errorMessage = "This YouTube video is DRM protected"
+                errorDetails = errorDetails || "DRM protected videos cannot be downloaded."
+              }
+            } else if (platform === 'Facebook') {
+              if (errorMessage.includes("requires login")) {
+                errorMessage = "This Facebook video requires login"
+                errorDetails = errorDetails || "Only public Facebook videos can be downloaded without authentication."
+              } else if (errorMessage.includes("private")) {
+                errorMessage = "This Facebook video is private"
+                errorDetails = errorDetails || "Make sure the video is publicly accessible."
+              }
+            }
+            
+            // General error messages
             if (errorMessage.includes("private") || errorMessage.includes("unavailable")) {
               errorMessage = "This video is private or has been removed"
-            } else if (errorMessage.includes("geo-restricted")) {
-              errorMessage = "This video is geo-restricted in your location"
-            } else if (errorMessage.includes("authentication")) {
-              errorMessage = "This video requires login to access"
+            } else if (errorMessage.includes("geo-restricted") || errorMessage.includes("geo-blocked")) {
+              errorMessage = "This video is geo-restricted"
+              errorDetails = errorDetails || "The video is not available in your location."
+            } else if (errorMessage.includes("authentication") || errorMessage.includes("Access forbidden")) {
+              errorMessage = "This video requires authentication"
+              errorDetails = errorDetails || "You need to be logged in to access this video."
             } else if (errorMessage.includes("platform is not supported")) {
-              errorMessage = "This video platform is not supported or the URL format is not recognized"
+              errorMessage = "Video platform not supported"
+              errorDetails = errorDetails || "This video platform or URL format is not recognized."
             } else if (errorMessage.includes("size limit")) {
-              errorMessage = "Video exceeds the 1GB size limit"
+              errorMessage = "Video exceeds size limit"
+              errorDetails = errorDetails || "The video is larger than the 1GB limit."
+            } else if (errorMessage.includes("timeout")) {
+              errorMessage = "Download timed out"
+              errorDetails = errorDetails || "The video is taking too long to download. It might be too large."
             }
           }
           
-          console.error("Detailed error:", errorMessage)
-          alert(`Video download failed: ${errorMessage}`)
+          console.error("Detailed error:", errorMessage, errorDetails)
+          
+          // Create a more informative error message
+          const fullErrorMessage = errorDetails 
+            ? `${errorMessage}\n\n${errorDetails}`
+            : errorMessage
+            
+          alert(`Video download failed:\n\n${fullErrorMessage}`)
           setUploadedFiles((prev) => prev.filter((f) => f.id !== id))
         } finally {
           setIsProcessingPaste(false)
@@ -988,9 +1060,24 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, PromptBoxProps>(
           </TooltipProvider>
         </div>
         <Dialog open={isFileDialogOpen} onOpenChange={setIsFileDialogOpen}>
-          <DialogContent>
+          <DialogContent className="bg-[#2f2f2f] border-[#4a4a4a] text-white max-w-4xl max-h-[90vh] overflow-auto">
             {selectedFilePreview && (
-              <div className="w-full">
+              <div className="w-full relative">
+                {/* File name header */}
+                <div className="absolute top-4 left-4 z-10 bg-black/50 rounded-lg px-3 py-2 max-w-[60%]">
+                  <p className="text-white text-sm">{selectedFilePreview.file.name}</p>
+                </div>
+
+                {/* Close button */}
+                <button
+                  onClick={() => setIsFileDialogOpen(false)}
+                  className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors"
+                  aria-label="Close modal"
+                >
+                  <XIcon className="h-6 w-6 text-white" />
+                </button>
+
+                {/* File content */}
                 {selectedFilePreview.videoUrl && getYouTubeVideoId(selectedFilePreview.videoUrl) ? (
                   <div className="aspect-video w-full">
                     <YouTubeEmbed
@@ -1000,11 +1087,45 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, PromptBoxProps>(
                     />
                   </div>
                 ) : selectedFilePreview.type === "image" ? (
-                  <img
-                    src={selectedFilePreview.thumbnail || "/placeholder.svg"}
-                    alt="Full size preview"
-                    className="w-full max-h-[95vh] object-contain rounded-[24px]"
-                  />
+                  <div className="relative">
+                    <img
+                      src={selectedFilePreview.thumbnail || "/placeholder.svg"}
+                      alt="Full size preview"
+                      className="w-full max-h-[70vh] object-contain rounded-lg"
+                    />
+                    
+                    {/* Edit and Animate buttons for images */}
+                    {(onEditImage || onAnimateImage) && (
+                      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-3">
+                        {onEditImage && (
+                          <button
+                            onClick={() => {
+                              onEditImage(selectedFilePreview.thumbnail || "", selectedFilePreview.file.name)
+                              setIsFileDialogOpen(false)
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg backdrop-blur-sm transition-colors border border-white/20"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                            Edit Image
+                          </button>
+                        )}
+                        {onAnimateImage && (
+                          <button
+                            onClick={() => {
+                              onAnimateImage(selectedFilePreview.thumbnail || "", selectedFilePreview.file.name)
+                              setIsFileDialogOpen(false)
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600/80 hover:bg-purple-700/90 text-white rounded-lg backdrop-blur-sm transition-colors border border-purple-500/20"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <polygon points="5 3 19 12 5 21 5 3" />
+                            </svg>
+                            Animate
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ) : selectedFilePreview.type === "audio" ? (
                   <div className="w-full p-8 bg-[#404040] rounded-[24px]">
                     <div className="flex flex-col items-center gap-4">
@@ -1028,7 +1149,7 @@ export const PromptBox = React.forwardRef<HTMLTextAreaElement, PromptBoxProps>(
                     controls
                     autoPlay
                     loop
-                    className="w-full max-h-[95vh] rounded-[24px] outline-none"
+                    className="w-full max-h-[70vh] rounded-lg outline-none"
                   >
                     Your browser does not support the video tag.
                   </video>

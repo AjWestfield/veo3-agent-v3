@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { flushSync } from "react-dom"
 import { useImages } from "@/contexts/images-context"
 import { useVideos } from "@/contexts/videos-context"
@@ -10,16 +10,21 @@ import { SessionNavBar } from "@/components/ui/sidebar"
 import { MessageContent } from "@/components/ui/message-content"
 import { SettingsPanel } from "@/components/settings"
 import { ImageEditModal } from "@/components/image-edit-modal"
+import { ImageAnimationModal } from "@/components/image-animation-modal"
 import { ImageComparisonModal } from "@/components/image-comparison-modal"
 import { MultiImageEditModal } from "@/components/multi-image-edit-modal"
 import { MultiImageResult } from "@/components/multi-image-result"
 import { MultiEditComparisonModal } from "@/components/multi-edit-comparison-modal"
 import { useSettings } from "@/contexts/settings-context"
 import { ImageProcessingPlaceholder } from "@/components/image-processing-placeholder"
+import { VideoProcessingPlaceholder } from "@/components/video-processing-placeholder"
 import { Notification } from "@/components/notification"
 import { mediaStorage, FileData } from "@/lib/media-storage"
 import { StorageWarning } from "@/components/ui/storage-warning"
 import { PromptBox } from "@/components/ui/chatgpt-prompt-input"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { CookieManager } from "@/components/social-download/cookie-manager"
+import { downloadVideoFromUrl, getPlatformFromUrl, FileWithPreview } from "@/lib/video-download-utils"
 
 export interface Message {
   role: "user" | "assistant"
@@ -39,62 +44,16 @@ export interface Message {
   }
 }
 
-interface FileWithPreview {
-  file: File
-  preview: string
-  type: "image" | "video" | "audio" | "other"
-  isEdited?: boolean
-  // For persistence - store file data as base64
-  base64Data?: string
-  fileName?: string
-  fileSize?: number
-  // Reference to stored file in IndexedDB
-  fileId?: string
-}
-
 // Detect video URLs in text
 function detectVideoUrls(text: string): string[] {
   // Updated pattern to be more flexible with TikTok URLs
-  const urlPattern = /https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|twitter\.com\/\w+\/status\/|x\.com\/\w+\/status\/|instagram\.com\/(?:p|reel|tv)\/|tiktok\.com\/[@\w.-]+\/video\/\d+|vm\.tiktok\.com\/\w+|facebook\.com\/(?:watch\/?\?v=|\w+\/videos\/)|fb\.com\/(?:watch\/?\?v=|\w+\/videos\/)|fb\.watch\/|vimeo\.com\/\d+|dailymotion\.com\/video\/|reddit\.com\/r\/\w+\/comments\/|twitch\.tv\/videos\/|streamable\.com\/\w+)[\w\-._~:/?#[\]@!$&'()*+,;=%?&=]*/gi
+  const urlPattern = /https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/|twitter\.com\/\w+\/status\/|x\.com\/\w+\/status\/|instagram\.com\/(?:p|reel|tv)\/|tiktok\.com\/[@\w.-]+\/video\/\d+|vm\.tiktok\.com\/\w+|facebook\.com\/(?:watch\/?\?v=|\w+\/videos\/|reel\/)|fb\.com\/(?:watch\/?\?v=|\w+\/videos\/)|fb\.watch\/|vimeo\.com\/\d+|dailymotion\.com\/video\/|reddit\.com\/r\/\w+\/comments\/|twitch\.tv\/videos\/|streamable\.com\/\w+)[\w\-._~:/?#[\]@!$&'()*+,;=%?&=]*/gi
   
   const matches = text.match(urlPattern) || []
   return [...new Set(matches)] // Remove duplicates
 }
 
-// Download video from URL
-async function downloadVideoFromUrl(url: string): Promise<FileWithPreview | null> {
-  try {
-    const response = await fetch('/api/download-video', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url })
-    })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to download video')
-    }
-
-    const data = await response.json()
-    
-    // Convert base64 to blob
-    const base64Response = await fetch(data.video.dataUrl)
-    const blob = await base64Response.blob()
-    
-    // Create File object
-    const file = new File([blob], data.video.filename, { type: 'video/mp4' })
-    
-    return {
-      file,
-      preview: data.video.dataUrl,
-      type: 'video'
-    }
-  } catch (error) {
-    return null
-  }
-}
 
 export default function ChatPage() {
   const { settings } = useSettings()
@@ -114,6 +73,7 @@ export default function ChatPage() {
   
   const [isLoading, setIsLoading] = useState(false)
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false)
   const [isDownloadingVideo, setIsDownloadingVideo] = useState(false)
   const [message, setMessage] = useState("")
   const [filesWithPreviews, setFilesWithPreviews] = useState<FileWithPreview[]>([])
@@ -125,11 +85,16 @@ export default function ChatPage() {
   const [filePathContent, setFilePathContent] = useState<{ content: string; type: string } | null>(null)
   const [isLoadingFile, setIsLoadingFile] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [showCookieManager, setShowCookieManager] = useState(false)
+  const [cookieManagerPlatform, setCookieManagerPlatform] = useState('')
+  const [pendingVideoUrl, setPendingVideoUrl] = useState('')
   const [editingImage, setEditingImage] = useState<{ url: string; alt: string } | null>(null)
+  const [animatingImage, setAnimatingImage] = useState<{ url: string; alt: string } | null>(null)
   const [comparisonModal, setComparisonModal] = useState<{ originalUrl: string; editedUrl: string; prompt: string } | null>(null)
   const [multiEditComparisonModal, setMultiEditComparisonModal] = useState<{ resultUrl: string; sourceImages: string[]; prompt: string } | null>(null)
   const [editedImages, setEditedImages] = useState<Map<string, { originalUrl: string; prompt: string }>>(new Map())
   const [isMultiEditOpen, setIsMultiEditOpen] = useState(false)
+  const [multiEditSpecificImages, setMultiEditSpecificImages] = useState<Array<{ id: string; url: string; prompt?: string }> | null>(null)
   const [multiEditResult, setMultiEditResult] = useState<{ resultImage: string; sourceImages: string[]; prompt: string; resultDimensions?: string } | null>(null)
   const [numberOfClips, setNumberOfClips] = useState<number | "auto">("auto")
   const [uploadedImageIds, setUploadedImageIds] = useState<Map<string, string>>(new Map()) // Maps file name to sidebar image ID
@@ -153,6 +118,7 @@ export default function ChatPage() {
   const [localMessages, setLocalMessages] = useState<Message[]>([])
   const [isMediaStorageReady, setIsMediaStorageReady] = useState(false)
   const [isLoadingSession, setIsLoadingSession] = useState(false)
+  const lastLoadedSessionId = useRef<string | null>(null)
   
   // Get messages from current session or local state
   const messages = currentSession?.messages || localMessages
@@ -206,16 +172,38 @@ export default function ChatPage() {
   // When session changes, update local messages and load file data
   useEffect(() => {
     const loadSessionFiles = async () => {
-      if (currentSession && !isUpdatingSession) {
-        setIsLoadingSession(true)
-        
+      // Only proceed if we have a current session ID
+      if (!currentSessionId) {
+        setLocalMessages([])
+        setIsLoadingSession(false)
+        lastLoadedSessionId.current = null
+        return
+      }
+      
+      // Skip if we're in the middle of updating
+      if (isUpdatingSession) {
+        return
+      }
+      
+      // Skip if we've already loaded this session
+      if (lastLoadedSessionId.current === currentSessionId) {
+        return
+      }
+      
+      // Set loading state immediately when session changes
+      setIsLoadingSession(true)
+      
+      // Find the current session from sessions array
+      const sessionToLoad = sessions.find(s => s.id === currentSessionId)
+      
+      if (sessionToLoad) {
         try {
           // Load file data from IndexedDB for this session
-          const sessionFiles = await mediaStorage.getFilesBySession(currentSession.id)
+          const sessionFiles = await mediaStorage.getFilesBySession(sessionToLoad.id)
           const fileMap = new Map(sessionFiles.map(f => [f.id, f]))
           
           // Update messages with file data
-          const messagesWithFiles = currentSession.messages.map(msg => {
+          const messagesWithFiles = sessionToLoad.messages.map(msg => {
             if (msg.files && msg.files.length > 0) {
               return {
                 ...msg,
@@ -235,24 +223,24 @@ export default function ChatPage() {
             return msg
           })
           
-          // Only update if messages are different to prevent infinite loops
-          const messagesChanged = JSON.stringify(localMessages) !== JSON.stringify(messagesWithFiles)
-          if (messagesChanged) {
-            setLocalMessages(messagesWithFiles)
-          }
+          // Update messages and mark as loaded
+          setLocalMessages(messagesWithFiles)
+          lastLoadedSessionId.current = currentSessionId
         } catch (error) {
           console.error('Failed to load session files:', error)
         } finally {
           setIsLoadingSession(false)
         }
-      } else if (!currentSession) {
+      } else {
+        // Session not found, clear messages and stop loading
         setLocalMessages([])
         setIsLoadingSession(false)
+        lastLoadedSessionId.current = null
       }
     }
     
     loadSessionFiles()
-  }, [currentSession?.id]) // Only depend on session ID to avoid circular updates
+  }, [currentSessionId, isUpdatingSession, sessions]) // Include sessions to ensure we have the data
   
   // Simple wrapper to update messages
   const setMessages = (updater: Message[] | ((prev: Message[]) => Message[])) => {
@@ -263,31 +251,129 @@ export default function ChatPage() {
   const handleSessionSwitch = useCallback((sessionId: string) => {
     if (sessionId === currentSessionId) return // Don't switch to same session
     
-    // Set loading state immediately to prevent UI flicker
-    setIsLoadingSession(true)
+    // Clear current form state immediately to prevent conflicts
+    setMessage("")
+    setFilesWithPreviews([])
+    setSelectedTool(null)
+    setHasEnhanced(false)
+    setPromptHistory([])
+    setHistoryIndex(-1)
     
-    // Switch to the new session
+    // Reset textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '48px'
+      textareaRef.current.style.maxHeight = '128px'
+    }
+    
+    // Reset the last loaded session ref so the new session will be loaded
+    lastLoadedSessionId.current = null
+    
+    // Switch to the new session (loading state will be managed by loadSessionFiles useEffect)
     switchToSession(sessionId)
-    
-    // Clear current form state only after session switch is initiated
-    setTimeout(() => {
-      setMessage("")
-      setFilesWithPreviews([])
-      setSelectedTool(null)
-      setHasEnhanced(false)
-      setPromptHistory([])
-      setHistoryIndex(-1)
-      
-      // Reset textarea
-      if (textareaRef.current) {
-        textareaRef.current.style.height = '48px'
-        textareaRef.current.style.maxHeight = '128px'
-      }
-    }, 0)
   }, [currentSessionId, switchToSession])
-  const { addImage, removeImage, images } = useImages()
+  const { addImage, removeImage, images, deselectAllImages, selectImage } = useImages()
   const { addVideo } = useVideos()
   const { addAudio } = useAudios()
+
+  // Handle video generation from prompt (for video analysis Generate Video button)
+  const handleGenerateVideoFromPrompt = async (prompt: string) => {
+    setIsGeneratingVideo(true)
+    
+    try {
+      const response = await fetch('/api/generate-video/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: prompt,
+          model: settings.videoGeneration?.model || 'veo-3-fast',
+          duration: settings.videoGeneration?.duration || 8,
+          quality: settings.videoGeneration?.quality || 'standard',
+          aspectRatio: settings.videoGeneration?.aspectRatio || '16:9',
+          enhancePrompt: settings.videoGeneration?.enhancePrompt !== false
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('No reader available')
+      }
+      
+      const decoder = new TextDecoder()
+      let buffer = ''
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+          
+          for (const line of lines) {
+            if (line.trim() === '') continue
+            
+            const data = line.replace(/^data: /, '')
+            if (data === '[DONE]') break
+            
+            try {
+              const parsed = JSON.parse(data)
+              
+              if (parsed.type === 'video') {
+                // Handle video generation completion
+                if (parsed.videoUrl && parsed.videoDetails) {
+                  // Add video to sidebar
+                  addVideo({
+                    id: parsed.videoDetails.id || new Date().getTime().toString(),
+                    url: parsed.videoUrl,
+                    type: 'video',
+                    title: `Generated Video - ${new Date().toLocaleString()}`,
+                    thumbnail: parsed.videoUrl,
+                    details: parsed.videoDetails,
+                    createdAt: parsed.videoDetails.createdAt || new Date().toISOString()
+                  })
+                  
+                  // Create video message content for chat interface
+                  const modelName = parsed.videoDetails.model === 'veo-3-fast' ? 'VEO 3 Fast' : 'Kling 2.1'
+                  let videoMessage = `🎬 **Video Generated from Analysis with ${modelName}**\n\n[Watch Video](${parsed.videoUrl})\n\n**Prompt:** ${parsed.videoDetails.prompt}`
+                  
+                  // Add video message to chat
+                  const newMessage = {
+                    role: "assistant" as const,
+                    content: videoMessage,
+                    timestamp: new Date(),
+                    isStreaming: false
+                  }
+                  setMessages(prev => [...prev, newMessage])
+                }
+              }
+            } catch (parseError) {
+              console.error('Error parsing streaming data:', parseError)
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+    } catch (error) {
+      console.error('Video generation failed:', error)
+      
+      // Show error message in chat
+      const errorMessage = {
+        role: "assistant" as const,
+        content: `❌ **Video Generation Failed**\n\nSorry, there was an error generating the video. Please try again.`,
+        timestamp: new Date(),
+        isStreaming: false
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsGeneratingVideo(false)
+    }
+  }
 
   // Removed automatic image tracking to prevent infinite loop with ScrollArea
   // Images are now only tracked when explicitly generated through the API
@@ -370,14 +456,43 @@ export default function ChatPage() {
           
           // Download videos
           const downloadedVideos: FileWithPreview[] = []
+          const failedUrls: { url: string; requiresCookies: boolean; platform: string }[] = []
+          
           for (const url of videoUrls) {
             try {
-              const downloadedVideo = await downloadVideoFromUrl(url)
-              if (downloadedVideo) {
-                downloadedVideos.push(downloadedVideo)
+              console.log('[Paste Handler] Downloading video from:', url)
+              const result = await downloadVideoFromUrl(url)
+              
+              if (result.file) {
+                console.log('[Paste Handler] Video downloaded successfully:', result.file.file.name)
+                downloadedVideos.push(result.file)
+              } else if (result.requiresCookies) {
+                console.log('[Paste Handler] Authentication required for:', url)
+                failedUrls.push({ 
+                  url, 
+                  requiresCookies: true, 
+                  platform: result.platform || 'unknown' 
+                })
+              } else {
+                console.log('[Paste Handler] Download failed:', result.error)
               }
             } catch (error) {
-              console.error(`Failed to download video from ${url}:`, error)
+              console.error(`[Paste Handler] Failed to download video from ${url}:`, error)
+              failedUrls.push({ 
+                url, 
+                requiresCookies: false, 
+                platform: getPlatformFromUrl(url) 
+              })
+            }
+          }
+          
+          // Handle authentication requirements
+          if (failedUrls.length > 0 && failedUrls.some(f => f.requiresCookies)) {
+            const authRequired = failedUrls.find(f => f.requiresCookies)
+            if (authRequired) {
+              setPendingVideoUrl(authRequired.url)
+              setCookieManagerPlatform(authRequired.platform)
+              setShowCookieManager(true)
             }
           }
           
@@ -411,6 +526,7 @@ export default function ChatPage() {
             
             // Add downloaded videos to sidebar for persistence
             downloadedVideos.forEach(video => {
+              console.log('[Paste Handler] Adding video to sidebar:', video.file.name)
               addVideo({
                 url: video.preview,
                 type: 'downloaded',
@@ -426,8 +542,9 @@ export default function ChatPage() {
         }
       }, 100) // Small delay to prevent immediate state updates
       
-      // Clear the message input since we prevented the paste
-      setMessage('')
+      // Don't clear the message - let the user decide what to do
+      // This prevents confusion when paste is intercepted
+      // setMessage('')
     }
   }
 
@@ -438,6 +555,7 @@ export default function ChatPage() {
     }
     setIsLoading(false)
     setIsGeneratingImage(false)
+    setIsGeneratingVideo(false)
     setIsDownloadingVideo(false)
     setIsAnalyzingAudio(false)
   }
@@ -546,7 +664,9 @@ export default function ChatPage() {
     const videoUrls = detectVideoUrls(message)
     let downloadedVideos: FileWithPreview[] = []
     
-    if (videoUrls.length > 0) {
+    // Only process video URLs if we're not already downloading and there are no files attached
+    // This prevents duplicate processing when URLs are pasted and then sent
+    if (videoUrls.length > 0 && !isDownloadingVideo && filesWithPreviews.length === 0) {
       setIsDownloadingVideo(true)
       
       // Show downloading message
@@ -560,9 +680,13 @@ export default function ChatPage() {
       
       // Download videos
       for (const url of videoUrls) {
-        const downloadedVideo = await downloadVideoFromUrl(url)
-        if (downloadedVideo) {
-          downloadedVideos.push(downloadedVideo)
+        console.log('[Send Handler] Downloading video from:', url)
+        const result = await downloadVideoFromUrl(url)
+        if (result.file) {
+          console.log('[Send Handler] Video downloaded successfully:', result.file.file.name)
+          downloadedVideos.push(result.file)
+        } else {
+          console.log('[Send Handler] Download failed:', result.error || 'Unknown error')
         }
       }
       
@@ -575,12 +699,13 @@ export default function ChatPage() {
         setFilesWithPreviews(prev => [...prev, ...downloadedVideos])
         
         // Add downloaded videos to sidebar for persistence
-        downloadedVideos.forEach(video => {
+        downloadedVideos.forEach((video, index) => {
+          console.log('[Send Handler] Adding video to sidebar:', video.file.name)
           addVideo({
             url: video.preview,
             type: 'downloaded',
             name: video.file.name,
-            platform: 'downloaded' // You could extract the platform from the URL if needed
+            platform: getPlatformFromUrl(videoUrls[index] || '') // Extract the actual platform
           })
         })
       }
@@ -652,6 +777,11 @@ export default function ChatPage() {
       setIsGeneratingImage(true)
     }
     
+    // Set video generation flag if using generateVideo tool
+    if (selectedTool === 'generateVideo') {
+      setIsGeneratingVideo(true)
+    }
+    
     // Reset textarea height to original size
     if (textareaRef.current) {
       textareaRef.current.style.height = '48px' // Reset to min-height
@@ -685,7 +815,7 @@ export default function ChatPage() {
           searchWeb: "Please search the web for: ",
           writeCode: "Please write code for: ",
           deepResearch: "Please do deep research on: ",
-          thinkLonger: "Please think carefully and thoroughly about: "
+          generateVideo: "Please generate a video showing: "
         }[selectedTool]
         
         finalMessage = toolPrefix + message
@@ -705,6 +835,11 @@ export default function ChatPage() {
       // Add image generation settings to FormData if using createImage tool
       if (selectedTool === 'createImage') {
         apiFormData.append("imageGenerationSettings", JSON.stringify(settings.imageGeneration))
+      }
+      
+      // Add video generation settings to FormData if using generateVideo tool
+      if (selectedTool === 'generateVideo') {
+        apiFormData.append("videoGenerationSettings", JSON.stringify(settings.videoGeneration))
       }
       
       // Add files to FormData
@@ -770,8 +905,13 @@ export default function ChatPage() {
           isStreaming: true
         }
         
-        // Reset image generation flag when streaming starts
+        // Reset image generation flag when streaming starts (but not video for generateVideo tool)
         setIsGeneratingImage(false)
+        
+        // Only reset video generation flag if we're not using the generateVideo tool
+        if (selectedTool !== "generateVideo") {
+          setIsGeneratingVideo(false)
+        }
         
         // Track whether we've added the assistant message
         let assistantMessageAdded = false
@@ -826,6 +966,10 @@ export default function ChatPage() {
                   }
                   return newMessages
                 })
+                
+                // Reset generation flags when streaming completes
+                setIsGeneratingVideo(false)
+                setIsGeneratingImage(false)
                 continue
               }
               
@@ -834,6 +978,13 @@ export default function ChatPage() {
                 
                 if (parsed.type === 'progress') {
                   // Handle progress updates
+                  // Skip progress messages for video generation - we use the video placeholder component instead
+                  if (selectedTool === 'generateVideo') {
+                    // For video generation, don't add progress messages to chat
+                    // The video placeholder component handles all progress display
+                    continue
+                  }
+                  
                   const progressMessage = parsed.message || 'Processing...'
                   
                   if (!assistantMessageAdded && isProgressMessage) {
@@ -903,6 +1054,95 @@ export default function ChatPage() {
                     }
                     return newMessages
                   })
+                } else if (parsed.type === 'message') {
+                  // Handle complete message content (for video generation, error messages, etc.)
+                  if (parsed.content) {
+                    if (!assistantMessageAdded) {
+                      // Add new message
+                      const newMessage: Message = {
+                        role: "assistant",
+                        content: parsed.content,
+                        timestamp: new Date(),
+                        isStreaming: !parsed.done
+                      }
+                      setMessages(prev => [...prev, newMessage])
+                      assistantMessageAdded = true
+                    } else {
+                      // Update existing message
+                      setMessages(prev => {
+                        const newMessages = [...prev]
+                        // Find the last assistant message and replace its content
+                        for (let i = newMessages.length - 1; i >= 0; i--) {
+                          if (newMessages[i].role === 'assistant') {
+                            newMessages[i] = {
+                              ...newMessages[i],
+                              content: parsed.content,
+                              isStreaming: !parsed.done
+                            }
+                            break
+                          }
+                        }
+                        return newMessages
+                      })
+                    }
+                    accumulatedContent = parsed.content
+                  }
+                } else if (parsed.type === 'video') {
+                  // Handle video generation completion
+                  if (parsed.videoUrl && parsed.videoDetails) {
+                    // Add video to sidebar
+                    addVideo({
+                      id: parsed.videoDetails.id || new Date().getTime().toString(),
+                      url: parsed.videoUrl,
+                      type: 'video',
+                      title: `Generated Video - ${new Date().toLocaleString()}`,
+                      thumbnail: parsed.videoUrl,
+                      details: parsed.videoDetails,
+                      createdAt: parsed.videoDetails.createdAt || new Date().toISOString()
+                    })
+                    
+                    // Create video message content for chat interface
+                    const modelName = parsed.videoDetails.model === 'veo-3-fast' ? 'VEO 3 Fast' : 'Kling 2.1'
+                    let videoMessage = `🎬 **Video Generated with ${modelName}**\n\n[Watch Video](${parsed.videoUrl})\n\n**Prompt:** ${parsed.videoDetails.prompt}`
+                    
+                    // Add note about model switch if it happened
+                    if (parsed.videoDetails.originalModel && parsed.videoDetails.originalModel !== parsed.videoDetails.model) {
+                      const originalModelName = parsed.videoDetails.originalModel === 'kling-2.1' ? 'Kling 2.1' : 'VEO 3 Fast'
+                      videoMessage += `\n\n*Note: Automatically switched from ${originalModelName} to ${modelName} for text-to-video generation.*`
+                    }
+                    
+                    // Add video message to chat
+                    if (!assistantMessageAdded) {
+                      // Add new message
+                      const newMessage: Message = {
+                        role: "assistant",
+                        content: videoMessage,
+                        timestamp: new Date(),
+                        isStreaming: false
+                      }
+                      setMessages(prev => [...prev, newMessage])
+                      assistantMessageAdded = true
+                    } else {
+                      // Update existing message content
+                      setMessages(prev => {
+                        const newMessages = [...prev]
+                        for (let i = newMessages.length - 1; i >= 0; i--) {
+                          if (newMessages[i].role === 'assistant') {
+                            newMessages[i] = {
+                              ...newMessages[i],
+                              content: videoMessage,
+                              isStreaming: false
+                            }
+                            break
+                          }
+                        }
+                        return newMessages
+                      })
+                    }
+                    
+                    // Reset video generation flag
+                    setIsGeneratingVideo(false)
+                  }
                 } else if (parsed.type === 'content') {
                   // Handle content chunks
                   if (!hasStartedContent && (hasVideo || selectedTool === 'searchWeb') && isProgressMessage) {
@@ -1010,6 +1250,47 @@ export default function ChatPage() {
             })
           }
         }
+        
+        // After streaming is complete, check if we generated a video
+        if (selectedTool === "generateVideo" && accumulatedContent) {
+          // Extract video URL from markdown content - looking for [Watch Video](url) pattern
+          const videoUrlMatch = accumulatedContent.match(/\[Watch Video\]\((https?:\/\/[^\)]+)\)/)
+          if (videoUrlMatch && videoUrlMatch[1]) {
+            const videoUrl = videoUrlMatch[1]
+            
+            // Extract video details from the content
+            let model = "unknown"
+            const modelMatch = accumulatedContent.match(/Model:\s*([^\n]+)/)
+            if (modelMatch && modelMatch[1]) {
+              model = modelMatch[1].trim()
+            }
+            
+            let duration = 8
+            const durationMatch = accumulatedContent.match(/Duration:\s*(\d+)s/)
+            if (durationMatch && durationMatch[1]) {
+              duration = parseInt(durationMatch[1])
+            }
+            
+            // Add video to sidebar
+            addVideo({
+              id: new Date().getTime().toString(),
+              url: videoUrl,
+              type: 'video',
+              title: `Generated Video - ${new Date().toLocaleString()}`,
+              thumbnail: videoUrl, // We could generate a thumbnail in the future
+              details: {
+                model: model.includes('kling') ? 'kling-2.1' : 'veo-3-fast',
+                duration,
+                quality: 'standard',
+                aspectRatio: '16:9',
+                prompt: message,
+                id: new Date().getTime().toString(),
+                createdAt: new Date().toISOString()
+              },
+              createdAt: new Date().toISOString()
+            })
+          }
+        }
       } else {
         // Handle regular JSON response (backward compatibility)
         const data = await response.json()
@@ -1032,6 +1313,19 @@ export default function ChatPage() {
         // If server responded with an image URL (generated), track it in sidebar
         if (data.imageUrl) {
           addImage({ url: data.imageUrl, prompt: message, model: data.model, type: 'generated' })
+        }
+        
+        // If server responded with video data (generated), track it in sidebar
+        if (data.type === 'video' && data.content && data.videoDetails) {
+          addVideo({
+            id: data.videoDetails.id || new Date().getTime().toString(),
+            url: data.content,
+            type: 'video',
+            title: `Generated Video - ${new Date().toLocaleString()}`,
+            thumbnail: data.content,
+            details: data.videoDetails,
+            createdAt: data.videoDetails.createdAt || new Date().toISOString()
+          })
         }
       }
       
@@ -1085,6 +1379,7 @@ Tips:
     } finally {
       setIsLoading(false)
       setIsGeneratingImage(false)
+      setIsGeneratingVideo(false)
       abortControllerRef.current = null
     }
   }
@@ -1541,6 +1836,39 @@ Tips:
     setEditingImage(null)
   }
 
+  // Handle image animation completion
+  const handleAnimationComplete = (videoUrl: string, prompt: string, originalImageUrl: string, videoMetadata?: any) => {
+    // Add the animated video to the videos context
+    const newVideo = addVideo({
+      url: videoUrl,
+      name: `Animated from image: ${prompt}`,
+      type: 'generated',
+      details: {
+        model: 'kling-2.1',
+        prompt: prompt,
+        duration: videoMetadata?.duration || 5,
+        quality: videoMetadata?.quality || 'standard',
+        aspectRatio: videoMetadata?.aspectRatio,
+        originalImageUrl: originalImageUrl,
+        predictionId: videoMetadata?.predictionId,
+        createdAt: videoMetadata?.createdAt || new Date().toISOString()
+      }
+    })
+
+    // Add assistant message with the animated video
+    const content = `I've animated your image based on your request: "${prompt}"\n\n[Watch Video](${videoUrl})\n\n*Animated using Kling 2.1 AI (${videoMetadata?.duration || 5} seconds, ${videoMetadata?.quality || 'standard'} quality)*`
+    
+    const animationMessage: Message = {
+      role: "assistant",
+      content,
+      timestamp: new Date(),
+      isStreaming: false
+    }
+    
+    setMessages(prev => [...prev, animationMessage])
+    setAnimatingImage(null)
+  }
+
   // Handle multi-image edit completion
   const handleMultiEditComplete = (editedImageUrl: string, prompt: string, sourceImages: string[], resultDimensions?: string) => {
     // Add the multi-edited image to the images context
@@ -1568,47 +1896,44 @@ Tips:
     { id: "searchWeb", name: "Search the web", icon: "🌐", shortName: "Search" },
     { id: "writeCode", name: "Write or code", icon: "✏️", shortName: "Write" },
     { id: "deepResearch", name: "Run deep research", icon: "🔬", shortName: "Deep Search" },
-    { id: "thinkLonger", name: "Think for longer", icon: "💡", shortName: "Think" },
+    { id: "generateVideo", name: "Generate video", icon: "🎬", shortName: "Video" },
   ]
 
   const selectedToolData = selectedTool ? toolsList.find(t => t.id === selectedTool) : null
 
-  // Handle sidebar image clicks to detect type and open appropriate modal
-  const handleSidebarImageClick = (imageData: any) => {
-    // Get the full image data from the images context
-    const fullImageData = images.find(img => img.id === imageData.id)
-    
-    if (!fullImageData) return
-    
-    // Check the type of image to determine which modal to open
-    if (fullImageData.type === 'edited' && fullImageData.originalUrl) {
-      // Open comparison modal for edited images
-      setComparisonModal({
-        originalUrl: fullImageData.originalUrl,
-        editedUrl: fullImageData.url,
-        prompt: fullImageData.prompt || ''
-      })
-    } else if (fullImageData.type === 'multi-edited' && fullImageData.sourceImages) {
-      // Open multi-edit comparison modal for multi-edited images
-      setMultiEditComparisonModal({
-        resultUrl: fullImageData.url,
-        sourceImages: fullImageData.sourceImages,
-        prompt: fullImageData.prompt || ''
-      })
-    } else {
-      // For regular images (generated, uploaded), open the edit modal
-      setEditingImage({ url: fullImageData.url, alt: fullImageData.prompt || "Image" })
-    }
-  }
 
   return (
     <div className="flex h-screen w-full bg-[#1a1a1a]">
       {/* Full featured sidebar */}
       <SessionNavBar 
         onSettingsClick={() => setIsSettingsOpen(true)} 
-        onEditImage={(url, alt) => setEditingImage({ url, alt })}
-        onMultiEditClick={() => setIsMultiEditOpen(true)}
-        onImageClick={handleSidebarImageClick}
+        onEditImage={(url, alt) => {
+          // Check if this is an edited image that should show comparison modal
+          const fullImageData = images.find(img => img.url === url)
+          if (fullImageData?.type === 'edited' && fullImageData.originalUrl) {
+            // Open comparison modal for edited images
+            setComparisonModal({
+              originalUrl: fullImageData.originalUrl,
+              editedUrl: fullImageData.url,
+              prompt: fullImageData.prompt || ''
+            })
+          } else if (fullImageData?.type === 'multi-edited' && fullImageData.sourceImages) {
+            // Open multi-edit comparison modal for multi-edited images
+            setMultiEditComparisonModal({
+              resultUrl: fullImageData.url,
+              sourceImages: fullImageData.sourceImages,
+              prompt: fullImageData.prompt || ''
+            })
+          } else {
+            // For regular images, open the edit modal
+            setEditingImage({ url, alt })
+          }
+        }}
+        onAnimateImage={(url, alt) => setAnimatingImage({ url, alt })}
+        onMultiEditClick={(selectedImages) => {
+          setMultiEditSpecificImages(selectedImages)
+          setIsMultiEditOpen(true)
+        }}
         onVideoClick={(videoData) => {
           // Create a FileWithPreview object for the video modal
           const fileWithPreview: FileWithPreview = {
@@ -1786,8 +2111,11 @@ Tips:
                         }
                       }}
                       onEditImage={(url, alt) => setEditingImage({ url, alt })}
+                      onAnimateImage={(url, alt) => setAnimatingImage({ url, alt })}
                       onFilePathClick={handleFilePathClick}
                       onRelatedQuestionClick={handleRelatedQuestionClick}
+                      onGenerateVideo={handleGenerateVideoFromPrompt}
+                      isGeneratingVideo={isGeneratingVideo}
                     />
                     <div className="text-xs mt-1 text-gray-500">
                       {msg.timestamp.toLocaleTimeString()}
@@ -1795,7 +2123,15 @@ Tips:
                   </div>
                 </div>
               ))}
-              {isLoading && !messages.some(msg => msg.role === 'assistant' && msg.isStreaming) && (
+              {/* Video placeholder - show during entire video generation process */}
+              {isGeneratingVideo && (
+                <div className="mb-4 text-left">
+                  <VideoProcessingPlaceholder model={settings.videoGeneration?.model || 'veo-3-fast'} />
+                </div>
+              )}
+              
+              {/* Regular loading placeholder for non-video generation */}
+              {isLoading && !isGeneratingVideo && !messages.some(msg => msg.role === 'assistant' && msg.isStreaming) && (
                 <div className="mb-4 text-left">
                   {isGeneratingImage ? (
                     <ImageProcessingPlaceholder type="generation" />
@@ -1891,7 +2227,7 @@ Tips:
                 )}
                 
                 {filesWithPreviews.length > 0 && (
-                  <div className="flex flex-col gap-2 mb-2 px-3">
+                  <div className="flex flex-col gap-2 mb-2 px-3 relative">
                     {/* Show clip selector if there are videos */}
                     {filesWithPreviews.some(f => f.type === 'video') && (
                       <div className="flex items-center gap-2 py-2 border-b border-white/10">
@@ -1955,12 +2291,29 @@ Tips:
                                   alt: fileWithPreview.file.name 
                                 })
                               }}
-                              className="absolute bottom-1 right-1 bg-black/70 hover:bg-black/90 text-white p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute bottom-1 right-8 bg-black/70 hover:bg-black/90 text-white p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
                               aria-label="Edit image"
                             >
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                                 <path d="m15 5 4 4" />
+                              </svg>
+                            </button>
+                            {/* Animate button */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setAnimatingImage({ 
+                                  url: fileWithPreview.preview, 
+                                  alt: fileWithPreview.file.name 
+                                })
+                              }}
+                              className="absolute bottom-1 right-1 bg-purple-600/80 hover:bg-purple-700/90 text-white p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                              aria-label="Animate image"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polygon points="5 3 19 12 5 21 5 3" />
                               </svg>
                             </button>
                           </div>
@@ -2037,6 +2390,37 @@ Tips:
                         </div>
                       ))}
                     </div>
+                    
+                    {/* Multi-image edit button when multiple images are uploaded */}
+                    {filesWithPreviews.filter(f => f.type === 'image').length > 1 && (
+                      <div className="mt-2 px-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Create specific images from uploaded files
+                            const imageFiles = filesWithPreviews.filter(f => f.type === 'image')
+                            const specificImages = imageFiles.map((fileWithPreview, index) => ({
+                              id: `uploaded-${index}-${Date.now()}`,
+                              url: fileWithPreview.preview,
+                              prompt: `Uploaded: ${fileWithPreview.file.name}`
+                            }))
+                            
+                            // Set specific images and open modal
+                            setMultiEditSpecificImages(specificImages)
+                            setIsMultiEditOpen(true)
+                          }}
+                          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600/10 to-purple-600/10 hover:from-blue-600/20 hover:to-purple-600/20 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all border border-white/10 hover:border-white/20 group"
+                          aria-label="Edit multiple images together"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-70 group-hover:opacity-100 transition-opacity">
+                            <path d="M20 7h-9m3-3l-3 3 3 3M4 17h9m-3 3l3-3-3-3" />
+                          </svg>
+                          <span className="opacity-90 group-hover:opacity-100">
+                            Combine {filesWithPreviews.filter(f => f.type === 'image').length} images with AI
+                          </span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
                 
@@ -2061,7 +2445,7 @@ Tips:
                       }
                     }
                   }}
-                  disabled={isLoading || isDownloadingVideo}
+                  disabled={isLoading || isDownloadingVideo || isLoadingSession}
                   placeholder={
                     isDownloadingVideo
                       ? "Downloading video from URL..."
@@ -2272,9 +2656,9 @@ Tips:
                     <button
                       type={isLoading || isDownloadingVideo ? "button" : "submit"}
                       onClick={isLoading || isDownloadingVideo ? handleStop : undefined}
-                      disabled={!isLoading && !isDownloadingVideo && (!message.trim() && filesWithPreviews.length === 0)}
+                      disabled={(!isLoading && !isDownloadingVideo && (!message.trim() && filesWithPreviews.length === 0)) || isLoadingSession}
                       className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none bg-white text-black hover:bg-gray-200 disabled:bg-gray-300 disabled:text-gray-500 dark:bg-white dark:text-black dark:hover:bg-gray-200 dark:disabled:bg-gray-300 dark:disabled:text-gray-500"
-                      aria-label={isLoading || isDownloadingVideo ? "Stop generation" : "Send message"}
+                      aria-label={isLoading || isDownloadingVideo ? "Stop generation" : isLoadingSession ? "Loading session..." : "Send message"}
                     >
                       {isLoading || isDownloadingVideo ? (
                         // Stop icon
@@ -2349,37 +2733,67 @@ Tips:
               </svg>
             </a>
 
-            {/* Edit button - only for images */}
+            {/* Edit and Animate buttons - only for images */}
             {selectedFilePreview.type === 'image' && (
-              <button
-                type="button"
-                onClick={async () => {
-                  // Use base64Data if available, otherwise use preview URL
-                  let imageUrl = selectedFilePreview.base64Data || selectedFilePreview.preview
-                  let altText = selectedFilePreview.fileName || selectedFilePreview.file?.name || 'Image'
-                  
-                  if (!selectedFilePreview.base64Data && imageUrl.startsWith('blob:') && selectedFilePreview.file) {
-                    // Read the file and convert to base64
-                    const reader = new FileReader()
-                    reader.onloadend = () => {
+              <>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    // Use base64Data if available, otherwise use preview URL
+                    let imageUrl = selectedFilePreview.base64Data || selectedFilePreview.preview
+                    let altText = selectedFilePreview.fileName || selectedFilePreview.file?.name || 'Image'
+                    
+                    if (!selectedFilePreview.base64Data && imageUrl.startsWith('blob:') && selectedFilePreview.file) {
+                      // Read the file and convert to base64
+                      const reader = new FileReader()
+                      reader.onloadend = () => {
+                        setSelectedFilePreview(null)
+                        setEditingImage({ url: reader.result as string, alt: altText })
+                      }
+                      reader.readAsDataURL(selectedFilePreview.file)
+                    } else {
                       setSelectedFilePreview(null)
-                      setEditingImage({ url: reader.result as string, alt: altText })
+                      setEditingImage({ url: imageUrl, alt: altText })
                     }
-                    reader.readAsDataURL(selectedFilePreview.file)
-                  } else {
-                    setSelectedFilePreview(null)
-                    setEditingImage({ url: imageUrl, alt: altText })
-                  }
-                }}
-                className="absolute top-4 right-32 z-10 px-3 py-2 bg-black/50 hover:bg-black/70 rounded-full flex items-center gap-1.5 transition-colors"
-                aria-label="Edit image"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                  <path d="m15 5 4 4" />
-                </svg>
-                <span className="text-sm text-white">Edit</span>
-              </button>
+                  }}
+                  className="absolute top-4 right-44 z-10 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg flex items-center gap-1.5 transition-colors border border-white/20"
+                  aria-label="Edit image"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                    <path d="m15 5 4 4" />
+                  </svg>
+                  <span className="text-sm text-white">Edit Image</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    // Use base64Data if available, otherwise use preview URL
+                    let imageUrl = selectedFilePreview.base64Data || selectedFilePreview.preview
+                    let altText = selectedFilePreview.fileName || selectedFilePreview.file?.name || 'Image'
+                    
+                    if (!selectedFilePreview.base64Data && imageUrl.startsWith('blob:') && selectedFilePreview.file) {
+                      // Read the file and convert to base64
+                      const reader = new FileReader()
+                      reader.onloadend = () => {
+                        setSelectedFilePreview(null)
+                        setAnimatingImage({ url: reader.result as string, alt: altText })
+                      }
+                      reader.readAsDataURL(selectedFilePreview.file)
+                    } else {
+                      setSelectedFilePreview(null)
+                      setAnimatingImage({ url: imageUrl, alt: altText })
+                    }
+                  }}
+                  className="absolute top-4 right-32 z-10 px-3 py-2 bg-purple-600/80 hover:bg-purple-700/90 rounded-lg flex items-center gap-1.5 transition-colors border border-purple-500/20"
+                  aria-label="Animate image"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                  <span className="text-sm text-white">Animate</span>
+                </button>
+              </>
             )}
 
             {/* Content */}
@@ -2628,6 +3042,16 @@ Tips:
         />
       )}
 
+      {/* Image Animation Modal */}
+      {animatingImage && (
+        <ImageAnimationModal
+          isOpen={!!animatingImage}
+          onClose={() => setAnimatingImage(null)}
+          imageUrl={animatingImage.url}
+          onAnimationComplete={handleAnimationComplete}
+        />
+      )}
+
       {/* Image Comparison Modal */}
       {comparisonModal && (
         <ImageComparisonModal
@@ -2642,8 +3066,17 @@ Tips:
       {/* Multi-Image Edit Modal */}
       <MultiImageEditModal
         isOpen={isMultiEditOpen}
-        onClose={() => setIsMultiEditOpen(false)}
+        onClose={() => {
+          setIsMultiEditOpen(false)
+          setMultiEditSpecificImages(null)
+        }}
         onEditComplete={handleMultiEditComplete}
+        onSendPrompt={(prompt) => {
+          setMessage(prompt)
+          setIsMultiEditOpen(false)
+          setMultiEditSpecificImages(null)
+        }}
+        specificImages={multiEditSpecificImages || undefined}
       />
 
       {/* Multi-Image Result Modal */}
@@ -2656,7 +3089,10 @@ Tips:
           prompt={multiEditResult.prompt}
           resultDimensions={multiEditResult.resultDimensions}
           onEditImage={(url, alt) => setEditingImage({ url, alt })}
-          onMultiEditClick={() => setIsMultiEditOpen(true)}
+          onMultiEditClick={(selectedImages) => {
+          setMultiEditSpecificImages(selectedImages)
+          setIsMultiEditOpen(true)
+        }}
         />
       )}
 
@@ -2790,6 +3226,52 @@ Tips:
         warning={storageWarning}
         onCleanup={() => cleanupOldSessions(5)} // Keep last 5 sessions
         onClearAll={handleClearAllSessions}
+      />
+      
+      {/* Cookie Manager */}
+      <CookieManager
+        isOpen={showCookieManager}
+        onClose={() => {
+          setShowCookieManager(false)
+          setPendingVideoUrl('')
+        }}
+        onSaveCookies={async (cookies) => {
+          setShowCookieManager(false)
+          if (pendingVideoUrl) {
+            setIsDownloadingVideo(true)
+            try {
+              const result = await downloadVideoFromUrl(pendingVideoUrl, cookies)
+              if (result.file) {
+                setFilesWithPreviews(prev => [...prev, result.file!])
+                addVideo({
+                  url: result.file!.preview,
+                  type: 'downloaded',
+                  name: result.file!.file.name,
+                  platform: cookieManagerPlatform
+                })
+                setNotification({
+                  message: 'Video downloaded successfully',
+                  description: 'The video has been added to your files.'
+                })
+              } else {
+                setNotification({
+                  message: 'Download failed',
+                  description: result.error || 'Unable to download video with provided cookies.'
+                })
+              }
+            } catch (error) {
+              console.error('Cookie download error:', error)
+              setNotification({
+                message: 'Download error',
+                description: 'An error occurred while downloading the video.'
+              })
+            } finally {
+              setIsDownloadingVideo(false)
+              setPendingVideoUrl('')
+            }
+          }
+        }}
+        platform={cookieManagerPlatform}
       />
     </div>
   )
