@@ -18,12 +18,12 @@ VEO3 Agent v3 is an advanced AI chat platform that combines multiple AI services
 - ✅ **Image Generation** - OpenAI and Wavespeed models
 - ✅ **Image Editing** - Single and multi-image editing
 - ✅ **YouTube Downloads** - Including YouTube Shorts
+- ✅ **Facebook Downloads** - Videos and Reels
 - ✅ **Audio Processing** - Upload and analyze audio files
 - ✅ **Prompt Enhancement** - AI-powered prompt improvement
 - ✅ **File Management** - Drag & drop, persistence, and validation
 
 ### Known Issues:
-- ❌ **Facebook Downloads** - Broken due to yt-dlp extractor (external issue)
 - ⚠️ **Video Generation** - May experience API errors from Replicate
 
 ## 📋 Prerequisites
@@ -119,7 +119,7 @@ npm start
 
 ### Video Downloads
 - **YouTube**: Paste any YouTube URL (including Shorts) - automatically downloads
-- **Facebook**: Currently not working due to yt-dlp issues
+- **Facebook**: Paste any Facebook video or Reel URL - automatically downloads
 - Videos appear in chat input and sidebar after download
 
 ### Image Editing
@@ -148,7 +148,7 @@ npm start
 2. **Video download fails**
    - Check if yt-dlp is updated: `npm update yt-dlp-exec`
    - For YouTube: Ensure video is public
-   - For Facebook: Use alternative methods (see docs)
+   - For Facebook: Ensure video is public or try different URL format
 
 3. **API errors**
    - Verify all required API keys are set
@@ -212,4 +212,4 @@ For issues or questions:
 
 ---
 
-**Note**: This is a working version with most features functional. Facebook video downloads are temporarily unavailable due to external dependencies.
+**Note**: This is a fully working version with all major features functional, including Facebook video downloads.
